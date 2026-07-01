@@ -362,7 +362,7 @@ Core: `SgPlatePressureLoadData` model (PlateNodes[], LoadCase, LoadCategory, Px/
 `Create Thermal Load` (`SpaceGass > Loads`, builder): Inputs: Element (generic — accepts Line for member or Plate Goo for plate, auto-detects element type), Load Case (required), Load Category (optional), Temperature (default 0), Y Gradient (default 0), Z Gradient (default 0). Output: Thermal Load Goo. Line input → member thermal load (carries member start/end for ID resolution). Plate Goo input → plate thermal load (carries corner nodes for plate ID resolution). Unrecognised input → error. Warns if all thermal values are zero. Pure data construction — no API calls.
 `Assemble Model` — unified `Loads` input now also accepts `GH_SgThermalLoad` Goo type. Load case and category collection gathers from all 10 load sources. Member thermal loads resolve via MemberMap (same pattern as distributed/concentrated); plate thermal loads resolve via PlateMap (same pattern as plate pressure). All pushed via single `Job.Loads.ThermalLoads.Bulk.PostAsync` call. Status includes thermal load count.
 Core: `SgThermalLoadData` model with factory methods `ForMember(...)` and `ForPlate(...)` (ElementType, MemberStart/End or PlateNodes, LoadCase, LoadCategory, ThermalLoad, YGradient, ZGradient, IsZero), `SgModelData.ThermalLoadCount`, `ISpaceGassApi.CreateThermalLoadsAsync`, `SpaceGassApiWrapper` implementation, extended `ModelAssembler` (memberLookup moved to method scope, thermal step resolves both member and plate elements) and `SpaceGassSession.AssembleModelAsync`. New Goo: `GH_SgThermalLoad`, `Param_SgThermalLoad`. 531 passing unit tests total (13 new).
-- 
+
 - [x] **Slice 30** - Get Plate Element forces
 
 **Delivered (Slice 30):** One new async results component + core query support.
