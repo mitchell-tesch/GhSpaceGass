@@ -62,7 +62,7 @@ public class GetBucklingResultsTests
                     RotnAxis = "Y"
                 }
             });
-        _api.GetBucklingEffectiveLengthsAsync(null, null, Arg.Any<CancellationToken>())
+        _api.GetBucklingEffectiveLengthsAsync(null, null, null, Arg.Any<CancellationToken>())
             .Returns(new List<BucklingEffectiveLength>());
 
         var result = await session.GetBucklingResultsAsync(model);
@@ -90,7 +90,7 @@ public class GetBucklingResultsTests
 
         _api.GetBucklingLoadFactorsAsync(Arg.Any<CancellationToken>())
             .Returns(new List<BucklingLoadFactor>());
-        _api.GetBucklingEffectiveLengthsAsync(null, null, Arg.Any<CancellationToken>())
+        _api.GetBucklingEffectiveLengthsAsync(null, null, null, Arg.Any<CancellationToken>())
             .Returns(new List<BucklingEffectiveLength>
             {
                 new() { Member = 1, Mode = 1, LoadCase = 1, Ly = 8.5f, Lz = 10.0f, Pcr = 500f, Length = 10f },
@@ -119,7 +119,7 @@ public class GetBucklingResultsTests
 
         _api.GetBucklingLoadFactorsAsync(Arg.Any<CancellationToken>())
             .Returns(new List<BucklingLoadFactor>());
-        _api.GetBucklingEffectiveLengthsAsync("1", null, Arg.Any<CancellationToken>())
+        _api.GetBucklingEffectiveLengthsAsync("1", null, null, Arg.Any<CancellationToken>())
             .Returns(new List<BucklingEffectiveLength>
             {
                 new() { Member = 1, Mode = 1, Ly = 8.5f, Lz = 10.0f, Pcr = 500f, Length = 10f }
@@ -129,7 +129,7 @@ public class GetBucklingResultsTests
             new[] { (new SgPoint3D(0, 0, 0), new SgPoint3D(10, 0, 0)) });
 
         Assert.Single(result.EffectiveLengths);
-        await _api.Received(1).GetBucklingEffectiveLengthsAsync("1", null, Arg.Any<CancellationToken>());
+        await _api.Received(1).GetBucklingEffectiveLengthsAsync("1", null, null, Arg.Any<CancellationToken>());
     }
 
     // ── Unmatched member filter warns ───────────────────────────────
@@ -142,7 +142,7 @@ public class GetBucklingResultsTests
 
         _api.GetBucklingLoadFactorsAsync(Arg.Any<CancellationToken>())
             .Returns(new List<BucklingLoadFactor>());
-        _api.GetBucklingEffectiveLengthsAsync(null, null, Arg.Any<CancellationToken>())
+        _api.GetBucklingEffectiveLengthsAsync(null, null, null, Arg.Any<CancellationToken>())
             .Returns(new List<BucklingEffectiveLength>());
 
         var result = await session.GetBucklingResultsAsync(model,
@@ -167,7 +167,7 @@ public class GetBucklingResultsTests
                 new() { Mode = 3, LoadCase = 1, LoadFactor = 12.3f }
             });
         // Mode filter also passed server-side for effective lengths
-        _api.GetBucklingEffectiveLengthsAsync(null, "1,3", Arg.Any<CancellationToken>())
+        _api.GetBucklingEffectiveLengthsAsync(null, "1,3", null, Arg.Any<CancellationToken>())
             .Returns(new List<BucklingEffectiveLength>());
 
         var result = await session.GetBucklingResultsAsync(model,
@@ -188,12 +188,12 @@ public class GetBucklingResultsTests
 
         _api.GetBucklingLoadFactorsAsync(Arg.Any<CancellationToken>())
             .Returns(new List<BucklingLoadFactor>());
-        _api.GetBucklingEffectiveLengthsAsync(null, "2", Arg.Any<CancellationToken>())
+        _api.GetBucklingEffectiveLengthsAsync(null, "2", null, Arg.Any<CancellationToken>())
             .Returns(new List<BucklingEffectiveLength>());
 
         await session.GetBucklingResultsAsync(model, modesFilter: new[] { 2 });
 
-        await _api.Received(1).GetBucklingEffectiveLengthsAsync(null, "2", Arg.Any<CancellationToken>());
+        await _api.Received(1).GetBucklingEffectiveLengthsAsync(null, "2", null, Arg.Any<CancellationToken>());
     }
 
     // ── Null Mode skips load factor record ───────────────────────────
@@ -210,7 +210,7 @@ public class GetBucklingResultsTests
                 new() { Mode = null, LoadCase = 1, LoadFactor = 5.0f },
                 new() { Mode = 1, LoadCase = 1, LoadFactor = 8.0f }
             });
-        _api.GetBucklingEffectiveLengthsAsync(null, null, Arg.Any<CancellationToken>())
+        _api.GetBucklingEffectiveLengthsAsync(null, null, null, Arg.Any<CancellationToken>())
             .Returns(new List<BucklingEffectiveLength>());
 
         var result = await session.GetBucklingResultsAsync(model);
@@ -229,7 +229,7 @@ public class GetBucklingResultsTests
 
         _api.GetBucklingLoadFactorsAsync(Arg.Any<CancellationToken>())
             .Returns(new List<BucklingLoadFactor>());
-        _api.GetBucklingEffectiveLengthsAsync(null, null, Arg.Any<CancellationToken>())
+        _api.GetBucklingEffectiveLengthsAsync(null, null, null, Arg.Any<CancellationToken>())
             .Returns(new List<BucklingEffectiveLength>
             {
                 new() { Member = null, Mode = 1, Ly = 5f, Lz = 6f },
@@ -255,7 +255,7 @@ public class GetBucklingResultsTests
             {
                 new() { Mode = 1, LoadCase = 1 } // all nullable values null
             });
-        _api.GetBucklingEffectiveLengthsAsync(null, null, Arg.Any<CancellationToken>())
+        _api.GetBucklingEffectiveLengthsAsync(null, null, null, Arg.Any<CancellationToken>())
             .Returns(new List<BucklingEffectiveLength>
             {
                 new() { Member = 1, Mode = 1 } // all nullable values null
@@ -287,7 +287,7 @@ public class GetBucklingResultsTests
 
         _api.GetBucklingLoadFactorsAsync(Arg.Any<CancellationToken>())
             .Returns(new List<BucklingLoadFactor>());
-        _api.GetBucklingEffectiveLengthsAsync(null, null, Arg.Any<CancellationToken>())
+        _api.GetBucklingEffectiveLengthsAsync(null, null, null, Arg.Any<CancellationToken>())
             .Returns(new List<BucklingEffectiveLength>());
 
         var result = await session.GetBucklingResultsAsync(model);
@@ -330,7 +330,7 @@ public class GetBucklingResultsTests
         var session = CreateConnectedSession();
         _api.GetBucklingLoadFactorsAsync(Arg.Any<CancellationToken>())
             .Returns(new List<BucklingLoadFactor>());
-        _api.GetBucklingEffectiveLengthsAsync(null, null, Arg.Any<CancellationToken>())
+        _api.GetBucklingEffectiveLengthsAsync(null, null, null, Arg.Any<CancellationToken>())
             .ThrowsAsync(new Exception("API fail"));
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
@@ -346,11 +346,45 @@ public class GetBucklingResultsTests
         var session = CreateConnectedSession();
         _api.GetBucklingLoadFactorsAsync(Arg.Any<CancellationToken>())
             .Returns(new List<BucklingLoadFactor>());
-        _api.GetBucklingEffectiveLengthsAsync(null, null, Arg.Any<CancellationToken>())
+        _api.GetBucklingEffectiveLengthsAsync(null, null, null, Arg.Any<CancellationToken>())
             .Returns(new List<BucklingEffectiveLength>());
 
         await session.GetBucklingResultsAsync(CreateTestModel());
 
-        await _api.Received(1).GetBucklingEffectiveLengthsAsync(null, null, Arg.Any<CancellationToken>());
+        await _api.Received(1).GetBucklingEffectiveLengthsAsync(null, null, null, Arg.Any<CancellationToken>());
+    }
+
+    // ── Load case filter passed server-side to effective lengths ─────
+
+    [Fact]
+    public async Task GetBucklingResultsAsync_WithLoadCaseFilter_PassesLoadCasesServerSide()
+    {
+        var session = CreateConnectedSession();
+        var model = CreateTestModel();
+        model.LoadCaseMap["Dead Load"] = 1;
+        model.LoadCaseMap["Live Load"] = 2;
+
+        _api.GetBucklingLoadFactorsAsync(Arg.Any<CancellationToken>())
+            .Returns(new List<BucklingLoadFactor>
+            {
+                new() { Mode = 1, LoadCase = 1, LoadFactor = 5.0f },
+                new() { Mode = 1, LoadCase = 2, LoadFactor = 3.0f }
+            });
+        _api.GetBucklingEffectiveLengthsAsync(null, null, "1", Arg.Any<CancellationToken>())
+            .Returns(new List<BucklingEffectiveLength>
+            {
+                new() { Member = 1, Mode = 1, LoadCase = 1, Ly = 8.5f, Lz = 10.0f, Pcr = 500f, Length = 10f }
+            });
+
+        var result = await session.GetBucklingResultsAsync(model,
+            loadCaseFilter: new[] { "Dead Load" });
+
+        // Load factors filtered client-side (no server-side support)
+        Assert.Single(result.LoadFactors);
+        Assert.Equal(5.0, result.LoadFactors[0].LoadFactor, 3);
+
+        // Effective lengths filtered server-side
+        Assert.Single(result.EffectiveLengths);
+        await _api.Received(1).GetBucklingEffectiveLengthsAsync(null, null, "1", Arg.Any<CancellationToken>());
     }
 }

@@ -47,7 +47,7 @@ public class GetDynamicFrequencyResultsTests
         var session = CreateConnectedSession();
         var model = CreateTestModel();
 
-        _api.GetNaturalFrequenciesAsync(null, Arg.Any<CancellationToken>())
+        _api.GetNaturalFrequenciesAsync(null, null, Arg.Any<CancellationToken>())
             .Returns(new List<NaturalFrequency>
             {
                 new()
@@ -61,7 +61,7 @@ public class GetDynamicFrequencyResultsTests
                     MassPartX = 0.1f, MassPartY = 0.7f, MassPartZ = 0.02f
                 }
             });
-        _api.GetModeShapesAsync(null, null, Arg.Any<CancellationToken>())
+        _api.GetModeShapesAsync(null, null, null, Arg.Any<CancellationToken>())
             .Returns(new List<ModeShape>());
 
         var result = await session.GetDynamicFrequencyResultsAsync(model);
@@ -88,9 +88,9 @@ public class GetDynamicFrequencyResultsTests
         var session = CreateConnectedSession();
         var model = CreateTestModel();
 
-        _api.GetNaturalFrequenciesAsync(null, Arg.Any<CancellationToken>())
+        _api.GetNaturalFrequenciesAsync(null, null, Arg.Any<CancellationToken>())
             .Returns(new List<NaturalFrequency>());
-        _api.GetModeShapesAsync(null, null, Arg.Any<CancellationToken>())
+        _api.GetModeShapesAsync(null, null, null, Arg.Any<CancellationToken>())
             .Returns(new List<ModeShape>
             {
                 new()
@@ -139,13 +139,13 @@ public class GetDynamicFrequencyResultsTests
         var session = CreateConnectedSession();
         var model = CreateTestModel();
 
-        _api.GetNaturalFrequenciesAsync("1,3", Arg.Any<CancellationToken>())
+        _api.GetNaturalFrequenciesAsync("1,3", null, Arg.Any<CancellationToken>())
             .Returns(new List<NaturalFrequency>
             {
                 new() { Mode = 1, LoadCase = 1, NaturalFrequencyProp = 2.5f },
                 new() { Mode = 3, LoadCase = 1, NaturalFrequencyProp = 12.0f }
             });
-        _api.GetModeShapesAsync("1,3", null, Arg.Any<CancellationToken>())
+        _api.GetModeShapesAsync("1,3", null, null, Arg.Any<CancellationToken>())
             .Returns(new List<ModeShape>());
 
         var result = await session.GetDynamicFrequencyResultsAsync(model,
@@ -155,8 +155,8 @@ public class GetDynamicFrequencyResultsTests
         Assert.Equal(1, result.NaturalFrequencies[0].Mode);
         Assert.Equal(3, result.NaturalFrequencies[1].Mode);
 
-        await _api.Received(1).GetNaturalFrequenciesAsync("1,3", Arg.Any<CancellationToken>());
-        await _api.Received(1).GetModeShapesAsync("1,3", null, Arg.Any<CancellationToken>());
+        await _api.Received(1).GetNaturalFrequenciesAsync("1,3", null, Arg.Any<CancellationToken>());
+        await _api.Received(1).GetModeShapesAsync("1,3", null, null, Arg.Any<CancellationToken>());
     }
 
     // ── Node filter resolves geometry to IDs for mode shapes ────────
@@ -167,9 +167,9 @@ public class GetDynamicFrequencyResultsTests
         var session = CreateConnectedSession();
         var model = CreateTestModel();
 
-        _api.GetNaturalFrequenciesAsync(null, Arg.Any<CancellationToken>())
+        _api.GetNaturalFrequenciesAsync(null, null, Arg.Any<CancellationToken>())
             .Returns(new List<NaturalFrequency>());
-        _api.GetModeShapesAsync(null, "1,2", Arg.Any<CancellationToken>())
+        _api.GetModeShapesAsync(null, "1,2", null, Arg.Any<CancellationToken>())
             .Returns(new List<ModeShape>
             {
                 new()
@@ -189,7 +189,7 @@ public class GetDynamicFrequencyResultsTests
             nodesFilter: new[] { new SgPoint3D(0, 0, 0), new SgPoint3D(10, 0, 0) });
 
         Assert.Equal(2, result.ModeShapes.Count);
-        await _api.Received(1).GetModeShapesAsync(null, "1,2", Arg.Any<CancellationToken>());
+        await _api.Received(1).GetModeShapesAsync(null, "1,2", null, Arg.Any<CancellationToken>());
     }
 
     // ── Unmatched node filter warns and skips ────────────────────────
@@ -200,9 +200,9 @@ public class GetDynamicFrequencyResultsTests
         var session = CreateConnectedSession();
         var model = CreateTestModel();
 
-        _api.GetNaturalFrequenciesAsync(null, Arg.Any<CancellationToken>())
+        _api.GetNaturalFrequenciesAsync(null, null, Arg.Any<CancellationToken>())
             .Returns(new List<NaturalFrequency>());
-        _api.GetModeShapesAsync(null, null, Arg.Any<CancellationToken>())
+        _api.GetModeShapesAsync(null, null, null, Arg.Any<CancellationToken>())
             .Returns(new List<ModeShape>());
 
         var result = await session.GetDynamicFrequencyResultsAsync(model,
@@ -219,13 +219,13 @@ public class GetDynamicFrequencyResultsTests
         var session = CreateConnectedSession();
         var model = CreateTestModel();
 
-        _api.GetNaturalFrequenciesAsync(null, Arg.Any<CancellationToken>())
+        _api.GetNaturalFrequenciesAsync(null, null, Arg.Any<CancellationToken>())
             .Returns(new List<NaturalFrequency>
             {
                 new() { Mode = null, LoadCase = 1, NaturalFrequencyProp = 2.5f },
                 new() { Mode = 1, LoadCase = 1, NaturalFrequencyProp = 5.0f }
             });
-        _api.GetModeShapesAsync(null, null, Arg.Any<CancellationToken>())
+        _api.GetModeShapesAsync(null, null, null, Arg.Any<CancellationToken>())
             .Returns(new List<ModeShape>());
 
         var result = await session.GetDynamicFrequencyResultsAsync(model);
@@ -242,9 +242,9 @@ public class GetDynamicFrequencyResultsTests
         var session = CreateConnectedSession();
         var model = CreateTestModel();
 
-        _api.GetNaturalFrequenciesAsync(null, Arg.Any<CancellationToken>())
+        _api.GetNaturalFrequenciesAsync(null, null, Arg.Any<CancellationToken>())
             .Returns(new List<NaturalFrequency>());
-        _api.GetModeShapesAsync(null, null, Arg.Any<CancellationToken>())
+        _api.GetModeShapesAsync(null, null, null, Arg.Any<CancellationToken>())
             .Returns(new List<ModeShape>
             {
                 new()
@@ -285,9 +285,9 @@ public class GetDynamicFrequencyResultsTests
         var session = CreateConnectedSession();
         var model = CreateTestModel();
 
-        _api.GetNaturalFrequenciesAsync(null, Arg.Any<CancellationToken>())
+        _api.GetNaturalFrequenciesAsync(null, null, Arg.Any<CancellationToken>())
             .Returns(new List<NaturalFrequency>());
-        _api.GetModeShapesAsync(null, null, Arg.Any<CancellationToken>())
+        _api.GetModeShapesAsync(null, null, null, Arg.Any<CancellationToken>())
             .Returns(new List<ModeShape>
             {
                 new()
@@ -317,12 +317,12 @@ public class GetDynamicFrequencyResultsTests
         var session = CreateConnectedSession();
         var model = CreateTestModel();
 
-        _api.GetNaturalFrequenciesAsync(null, Arg.Any<CancellationToken>())
+        _api.GetNaturalFrequenciesAsync(null, null, Arg.Any<CancellationToken>())
             .Returns(new List<NaturalFrequency>
             {
                 new() { Mode = 1, LoadCase = 1 } // all nullable values null
             });
-        _api.GetModeShapesAsync(null, null, Arg.Any<CancellationToken>())
+        _api.GetModeShapesAsync(null, null, null, Arg.Any<CancellationToken>())
             .Returns(new List<ModeShape>
             {
                 new()
@@ -360,9 +360,9 @@ public class GetDynamicFrequencyResultsTests
         var session = CreateConnectedSession();
         var model = CreateTestModel();
 
-        _api.GetNaturalFrequenciesAsync(null, Arg.Any<CancellationToken>())
+        _api.GetNaturalFrequenciesAsync(null, null, Arg.Any<CancellationToken>())
             .Returns(new List<NaturalFrequency>());
-        _api.GetModeShapesAsync(null, null, Arg.Any<CancellationToken>())
+        _api.GetModeShapesAsync(null, null, null, Arg.Any<CancellationToken>())
             .Returns(new List<ModeShape>());
 
         var result = await session.GetDynamicFrequencyResultsAsync(model);
@@ -390,7 +390,7 @@ public class GetDynamicFrequencyResultsTests
     public async Task GetDynamicFrequencyResultsAsync_NaturalFrequenciesApiThrows_WrapsException()
     {
         var session = CreateConnectedSession();
-        _api.GetNaturalFrequenciesAsync(null, Arg.Any<CancellationToken>())
+        _api.GetNaturalFrequenciesAsync(null, null, Arg.Any<CancellationToken>())
             .ThrowsAsync(new Exception("API fail"));
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
@@ -404,9 +404,9 @@ public class GetDynamicFrequencyResultsTests
     public async Task GetDynamicFrequencyResultsAsync_ModeShapesApiThrows_WrapsException()
     {
         var session = CreateConnectedSession();
-        _api.GetNaturalFrequenciesAsync(null, Arg.Any<CancellationToken>())
+        _api.GetNaturalFrequenciesAsync(null, null, Arg.Any<CancellationToken>())
             .Returns(new List<NaturalFrequency>());
-        _api.GetModeShapesAsync(null, null, Arg.Any<CancellationToken>())
+        _api.GetModeShapesAsync(null, null, null, Arg.Any<CancellationToken>())
             .ThrowsAsync(new Exception("API fail"));
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
@@ -420,15 +420,15 @@ public class GetDynamicFrequencyResultsTests
     public async Task GetDynamicFrequencyResultsAsync_WithNoFilters_PassesNullsToApi()
     {
         var session = CreateConnectedSession();
-        _api.GetNaturalFrequenciesAsync(null, Arg.Any<CancellationToken>())
+        _api.GetNaturalFrequenciesAsync(null, null, Arg.Any<CancellationToken>())
             .Returns(new List<NaturalFrequency>());
-        _api.GetModeShapesAsync(null, null, Arg.Any<CancellationToken>())
+        _api.GetModeShapesAsync(null, null, null, Arg.Any<CancellationToken>())
             .Returns(new List<ModeShape>());
 
         await session.GetDynamicFrequencyResultsAsync(CreateTestModel());
 
-        await _api.Received(1).GetNaturalFrequenciesAsync(null, Arg.Any<CancellationToken>());
-        await _api.Received(1).GetModeShapesAsync(null, null, Arg.Any<CancellationToken>());
+        await _api.Received(1).GetNaturalFrequenciesAsync(null, null, Arg.Any<CancellationToken>());
+        await _api.Received(1).GetModeShapesAsync(null, null, null, Arg.Any<CancellationToken>());
     }
 
     // ── Combined mode + node filters ────────────────────────────────
@@ -439,12 +439,12 @@ public class GetDynamicFrequencyResultsTests
         var session = CreateConnectedSession();
         var model = CreateTestModel();
 
-        _api.GetNaturalFrequenciesAsync("1", Arg.Any<CancellationToken>())
+        _api.GetNaturalFrequenciesAsync("1", null, Arg.Any<CancellationToken>())
             .Returns(new List<NaturalFrequency>
             {
                 new() { Mode = 1, LoadCase = 1, NaturalFrequencyProp = 2.5f }
             });
-        _api.GetModeShapesAsync("1", "2", Arg.Any<CancellationToken>())
+        _api.GetModeShapesAsync("1", "2", null, Arg.Any<CancellationToken>())
             .Returns(new List<ModeShape>
             {
                 new()
@@ -467,8 +467,48 @@ public class GetDynamicFrequencyResultsTests
         Assert.Single(result.NaturalFrequencies);
         Assert.Single(result.ModeShapes);
 
-        await _api.Received(1).GetNaturalFrequenciesAsync("1", Arg.Any<CancellationToken>());
-        await _api.Received(1).GetModeShapesAsync("1", "2", Arg.Any<CancellationToken>());
+        await _api.Received(1).GetNaturalFrequenciesAsync("1", null, Arg.Any<CancellationToken>());
+        await _api.Received(1).GetModeShapesAsync("1", "2", null, Arg.Any<CancellationToken>());
+    }
+
+    // ── Load case filter passed server-side ──────────────────────────
+
+    [Fact]
+    public async Task GetDynamicFrequencyResultsAsync_WithLoadCaseFilter_PassesLoadCasesServerSide()
+    {
+        var session = CreateConnectedSession();
+        var model = CreateTestModel();
+        model.LoadCaseMap["Dead Load"] = 1;
+        model.LoadCaseMap["Live Load"] = 2;
+
+        _api.GetNaturalFrequenciesAsync(null, "1", Arg.Any<CancellationToken>())
+            .Returns(new List<NaturalFrequency>
+            {
+                new() { Mode = 1, LoadCase = 1, NaturalFrequencyProp = 2.5f, NaturalPeriod = 0.4f }
+            });
+        _api.GetModeShapesAsync(null, null, "1", Arg.Any<CancellationToken>())
+            .Returns(new List<ModeShape>
+            {
+                new()
+                {
+                    Mode = 1, LoadCase = 1,
+                    Node = new List<int?> { 1 },
+                    Tx = new List<float?> { 0.1f },
+                    Ty = new List<float?> { 0.0f },
+                    Tz = new List<float?> { 0.0f },
+                    Rx = new List<float?> { 0.0f },
+                    Ry = new List<float?> { 0.0f },
+                    Rz = new List<float?> { 0.0f }
+                }
+            });
+
+        var result = await session.GetDynamicFrequencyResultsAsync(model,
+            loadCaseFilter: new[] { "Dead Load" });
+
+        Assert.Single(result.NaturalFrequencies);
+        Assert.Single(result.ModeShapes);
+
+        await _api.Received(1).GetNaturalFrequenciesAsync(null, "1", Arg.Any<CancellationToken>());
+        await _api.Received(1).GetModeShapesAsync(null, null, "1", Arg.Any<CancellationToken>());
     }
 }
-

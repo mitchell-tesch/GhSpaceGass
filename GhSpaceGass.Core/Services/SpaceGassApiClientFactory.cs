@@ -368,7 +368,7 @@ internal class SpaceGassApiWrapper : ISpaceGassApi
     }
 
     public async Task<List<BucklingEffectiveLength>> GetBucklingEffectiveLengthsAsync(
-        string? members = null, string? modes = null, CancellationToken ct = default)
+        string? members = null, string? modes = null, string? loadCases = null, CancellationToken ct = default)
     {
         var result = await _client.Job.Query.Analysis.Buckling.MemberEffectiveLengths.GetAsync(
             config =>
@@ -377,26 +377,30 @@ internal class SpaceGassApiWrapper : ISpaceGassApi
                     config.QueryParameters.Members = members;
                 if (modes != null)
                     config.QueryParameters.Modes = modes;
+                if (loadCases != null)
+                    config.QueryParameters.LoadCases = loadCases;
             },
             ct).ConfigureAwait(false);
         return result?.Results ?? new List<BucklingEffectiveLength>();
     }
 
     public async Task<List<NaturalFrequency>> GetNaturalFrequenciesAsync(
-        string? modes = null, CancellationToken ct = default)
+        string? modes = null, string? loadCases = null, CancellationToken ct = default)
     {
         var result = await _client.Job.Query.Analysis.Dynamic.NaturalFrequencies.GetAsync(
             config =>
             {
                 if (modes != null)
                     config.QueryParameters.Modes = modes;
+                if (loadCases != null)
+                    config.QueryParameters.LoadCases = loadCases;
             },
             ct).ConfigureAwait(false);
         return result?.Results ?? new List<NaturalFrequency>();
     }
 
     public async Task<List<ModeShape>> GetModeShapesAsync(
-        string? modes = null, string? nodes = null, CancellationToken ct = default)
+        string? modes = null, string? nodes = null, string? loadCases = null, CancellationToken ct = default)
     {
         var result = await _client.Job.Query.Analysis.Dynamic.ModeShapes.GetAsync(
             config =>
@@ -405,6 +409,8 @@ internal class SpaceGassApiWrapper : ISpaceGassApi
                     config.QueryParameters.Modes = modes;
                 if (nodes != null)
                     config.QueryParameters.Nodes = nodes;
+                if (loadCases != null)
+                    config.QueryParameters.LoadCases = loadCases;
             },
             ct).ConfigureAwait(false);
         return result?.Results ?? new List<ModeShape>();

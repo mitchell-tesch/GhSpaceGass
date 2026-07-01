@@ -134,14 +134,14 @@ internal interface ISpaceGassApi : IDisposable
         CancellationToken ct = default);
 
     Task<List<BucklingEffectiveLength>> GetBucklingEffectiveLengthsAsync(
-        string? members = null, string? modes = null, CancellationToken ct = default);
+        string? members = null, string? modes = null, string? loadCases = null, CancellationToken ct = default);
 
     // ── Dynamic frequency results (queries) ────────────────────────────
     Task<List<NaturalFrequency>> GetNaturalFrequenciesAsync(
-        string? modes = null, CancellationToken ct = default);
+        string? modes = null, string? loadCases = null, CancellationToken ct = default);
 
     Task<List<ModeShape>> GetModeShapesAsync(
-        string? modes = null, string? nodes = null, CancellationToken ct = default);
+        string? modes = null, string? nodes = null, string? loadCases = null, CancellationToken ct = default);
 
     // ── Plate results (queries) ────────────────────────────────────────
     Task<List<PlateElementForce>> GetPlateElementForcesAsync(

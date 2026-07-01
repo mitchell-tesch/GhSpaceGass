@@ -1020,8 +1020,9 @@ public class SpaceGassSession : IDisposable
             modesSet = new HashSet<int>(modesFilter);
         }
 
-        // ── Resolve load case filter → set of IDs for client-side filtering ──
+        // ── Resolve load case filter → set of IDs for client-side filtering + string for server-side ──
         HashSet<int>? loadCaseIdSet = null;
+        string? loadCasesParam = null;
         if (loadCaseFilter != null && loadCaseFilter.Count > 0)
         {
             loadCaseIdSet = new HashSet<int>();
@@ -1033,9 +1034,12 @@ public class SpaceGassSession : IDisposable
                 else
                     result.Warnings.Add(
                         $"Load case '{name}' does not match any model load case — skipped.");
+
+            if (loadCaseIdSet.Count > 0)
+                loadCasesParam = string.Join(",", loadCaseIdSet);
         }
 
-        // ── Query 1: Load Factors (no server-side filter) ─────────
+        // ── Query 1: Load Factors (no server-side load case filter available) ─────────
         List<BucklingLoadFactor> loadFactors;
         try
         {
@@ -1084,7 +1088,7 @@ public class SpaceGassSession : IDisposable
         try
         {
             effectiveLengths = await _api!.GetBucklingEffectiveLengthsAsync(
-                membersParam, modesParam, ct).ConfigureAwait(false);
+                membersParam, modesParam, loadCasesParam, ct).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -1157,8 +1161,9 @@ public class SpaceGassSession : IDisposable
                 nodesParam = string.Join(",", nodeIds);
         }
 
-        // ── Resolve load case filter → set of IDs for client-side filtering ──
+        // ── Resolve load case filter → set of IDs for client-side filtering + string for server-side ──
         HashSet<int>? loadCaseIdSet = null;
+        string? loadCasesParam = null;
         if (loadCaseFilter != null && loadCaseFilter.Count > 0)
         {
             loadCaseIdSet = new HashSet<int>();
@@ -1170,13 +1175,16 @@ public class SpaceGassSession : IDisposable
                 else
                     result.Warnings.Add(
                         $"Load case '{name}' does not match any model load case — skipped.");
+
+            if (loadCaseIdSet.Count > 0)
+                loadCasesParam = string.Join(",", loadCaseIdSet);
         }
 
-        // ── Query 1: Natural Frequencies ───────────────────────────
+        // ── Query 1: Natural Frequencies (server-side filter) ────
         List<NaturalFrequency> frequencies;
         try
         {
-            frequencies = await _api!.GetNaturalFrequenciesAsync(modesParam, ct)
+            frequencies = await _api!.GetNaturalFrequenciesAsync(modesParam, loadCasesParam, ct)
                 .ConfigureAwait(false);
         }
         catch (OperationCanceledException)
@@ -1206,11 +1214,11 @@ public class SpaceGassSession : IDisposable
                 f.MassPartZ ?? 0));
         }
 
-        // ── Query 2: Mode Shapes ───────────────────────────────────
+        // ── Query 2: Mode Shapes (server-side filter) ──────────────
         List<ModeShape> modeShapes;
         try
         {
-            modeShapes = await _api!.GetModeShapesAsync(modesParam, nodesParam, ct)
+            modeShapes = await _api!.GetModeShapesAsync(modesParam, nodesParam, loadCasesParam, ct)
                 .ConfigureAwait(false);
         }
         catch (OperationCanceledException)
