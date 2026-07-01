@@ -82,7 +82,7 @@ public class ConnectComponent : GH_AsyncComponent<ConnectComponent>
         Menu_AppendItem(
             menu,
             "Cancel",
-            (s, e) => { RequestCancellation(); }
+            (_, _) => { RequestCancellation(); }
         );
     }
 

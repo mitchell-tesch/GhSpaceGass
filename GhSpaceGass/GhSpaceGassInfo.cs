@@ -30,7 +30,7 @@ public class GhSpaceGassPriority : GH_AssemblyPriority
 {
     public override GH_LoadingInstruction PriorityLoad()
     {
-        Instances.DocumentServer.DocumentRemoved += (sender, e) =>
+        Instances.DocumentServer.DocumentRemoved += (s, e) =>
         {
             // When the last document is closed, clean up
             if (Instances.DocumentServer.DocumentCount == 0)

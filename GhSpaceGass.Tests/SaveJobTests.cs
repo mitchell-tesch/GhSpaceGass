@@ -39,7 +39,7 @@ public class SaveJobTests
                 IsModified = false,
                 File = new JobFile
                 {
-                    Name = System.IO.Path.GetFileName(filePath),
+                    Name = Path.GetFileName(filePath),
                     Path = filePath
                 }
             },

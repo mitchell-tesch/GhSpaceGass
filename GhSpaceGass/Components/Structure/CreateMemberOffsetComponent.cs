@@ -11,12 +11,12 @@ namespace GhSpaceGass.Components.Structure;
 public class CreateMemberOffsetComponent : GH_Component
 {
     private int _inAxes;
-    private int _inXA;
-    private int _inXB;
-    private int _inYA;
-    private int _inYB;
-    private int _inZA;
-    private int _inZB;
+    private int _inXa;
+    private int _inXb;
+    private int _inYa;
+    private int _inYb;
+    private int _inZa;
+    private int _inZb;
 
     private int _outOffset;
 
@@ -33,22 +33,22 @@ public class CreateMemberOffsetComponent : GH_Component
 
     protected override void RegisterInputParams(GH_InputParamManager pManager)
     {
-        _inXA = pManager.AddNumberParameter("X Offset A", "XA",
+        _inXa = pManager.AddNumberParameter("X Offset A", "XA",
             "X offset at end A (default: 0).",
             GH_ParamAccess.item, 0.0);
-        _inYA = pManager.AddNumberParameter("Y Offset A", "YA",
+        _inYa = pManager.AddNumberParameter("Y Offset A", "YA",
             "Y offset at end A (default: 0).",
             GH_ParamAccess.item, 0.0);
-        _inZA = pManager.AddNumberParameter("Z Offset A", "ZA",
+        _inZa = pManager.AddNumberParameter("Z Offset A", "ZA",
             "Z offset at end A (default: 0).",
             GH_ParamAccess.item, 0.0);
-        _inXB = pManager.AddNumberParameter("X Offset B", "XB",
+        _inXb = pManager.AddNumberParameter("X Offset B", "XB",
             "X offset at end B (default: 0).",
             GH_ParamAccess.item, 0.0);
-        _inYB = pManager.AddNumberParameter("Y Offset B", "YB",
+        _inYb = pManager.AddNumberParameter("Y Offset B", "YB",
             "Y offset at end B (default: 0).",
             GH_ParamAccess.item, 0.0);
-        _inZB = pManager.AddNumberParameter("Z Offset B", "ZB",
+        _inZb = pManager.AddNumberParameter("Z Offset B", "ZB",
             "Z offset at end B (default: 0).",
             GH_ParamAccess.item, 0.0);
         _inAxes = pManager.AddParameter(
@@ -58,12 +58,12 @@ public class CreateMemberOffsetComponent : GH_Component
             "Offset axis system (Local=0, Global=1). Default: Local.",
             GH_ParamAccess.item);
 
-        pManager[_inXA].Optional = true;
-        pManager[_inYA].Optional = true;
-        pManager[_inZA].Optional = true;
-        pManager[_inXB].Optional = true;
-        pManager[_inYB].Optional = true;
-        pManager[_inZB].Optional = true;
+        pManager[_inXa].Optional = true;
+        pManager[_inYa].Optional = true;
+        pManager[_inZa].Optional = true;
+        pManager[_inXb].Optional = true;
+        pManager[_inYb].Optional = true;
+        pManager[_inZb].Optional = true;
         pManager[_inAxes].Optional = true;
     }
 
@@ -81,12 +81,12 @@ public class CreateMemberOffsetComponent : GH_Component
         double xb = 0, yb = 0, zb = 0;
         int axes = 0;
 
-        da.GetData(_inXA, ref xa);
-        da.GetData(_inYA, ref ya);
-        da.GetData(_inZA, ref za);
-        da.GetData(_inXB, ref xb);
-        da.GetData(_inYB, ref yb);
-        da.GetData(_inZB, ref zb);
+        da.GetData(_inXa, ref xa);
+        da.GetData(_inYa, ref ya);
+        da.GetData(_inZa, ref za);
+        da.GetData(_inXb, ref xb);
+        da.GetData(_inYb, ref yb);
+        da.GetData(_inZb, ref zb);
         da.GetData(_inAxes, ref axes);
 
         var axesType = axes == 0 ? AxesType.Local : AxesType.Global;

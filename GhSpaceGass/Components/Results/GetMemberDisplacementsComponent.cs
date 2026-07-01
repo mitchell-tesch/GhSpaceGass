@@ -99,7 +99,7 @@ public class GetMemberDisplacementsComponent : GH_AsyncComponent<GetMemberDispla
     public override void AppendAdditionalMenuItems(ToolStripDropDown menu)
     {
         base.AppendAdditionalMenuItems(menu);
-        Menu_AppendItem(menu, "Cancel", (s, e) => { RequestCancellation(); });
+        Menu_AppendItem(menu, "Cancel", (_, _) => { RequestCancellation(); });
     }
 
     // ── Worker ────────────────────────────────────────────────────

@@ -11,6 +11,10 @@ using Grasshopper.Kernel;
 using Rhino;
 using Timer = System.Timers.Timer;
 
+// ===========================================================
+// Using approach developed by Speckle Systems
+// https://github.com/specklesystems/GrasshopperAsyncComponent
+// ===========================================================
 namespace GhSpaceGass.Async;
 
 internal sealed class Worker<T> : IDisposable

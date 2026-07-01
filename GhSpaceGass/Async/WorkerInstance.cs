@@ -3,6 +3,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using Grasshopper.Kernel;
 
+// ===========================================================
+// Using approach developed by Speckle Systems
+// https://github.com/specklesystems/GrasshopperAsyncComponent
+// ===========================================================
 namespace GhSpaceGass.Async;
 
 /// <summary>

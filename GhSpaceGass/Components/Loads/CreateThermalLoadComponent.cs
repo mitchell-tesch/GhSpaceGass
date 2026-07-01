@@ -5,7 +5,6 @@ using GhSpaceGass.Types;
 using Grasshopper.Kernel;
 using Grasshopper.Kernel.Types;
 using Rhino.Geometry;
-using SpaceGassApi.Models;
 
 namespace GhSpaceGass.Components.Loads;
 

@@ -81,7 +81,7 @@ public class RunAnalysisComponent : GH_AsyncComponent<RunAnalysisComponent>
     public override void AppendAdditionalMenuItems(ToolStripDropDown menu)
     {
         base.AppendAdditionalMenuItems(menu);
-        Menu_AppendItem(menu, "Cancel", (s, e) => { RequestCancellation(); });
+        Menu_AppendItem(menu, "Cancel", (_, _) => { RequestCancellation(); });
     }
 
 

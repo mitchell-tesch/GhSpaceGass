@@ -239,9 +239,7 @@ public class ModelAssembler
             allPoints.Add(m.End);
         }
 
-        foreach (var p in effectivePlates)
-            foreach (var node in p.Nodes)
-                allPoints.Add(node);
+        allPoints.AddRange(effectivePlates.SelectMany(p => p.Nodes));
 
         // Identify orphan restraint points (ADR-0002) and add them to the
         // node pool so they get created as standalone nodes.
@@ -360,102 +358,101 @@ public class ModelAssembler
             model.NodeMap[uniquePoints[i]] = createdNodes[i].Id!.Value;
 
         // ── Step 5: Create members (only if members exist) ────────────
-        List<Member> createdMembers = new();
         if (members.Count > 0)
         {
-        var memberCreates = new List<MemberCreate>(members.Count);
-        foreach (var m in members)
-        {
-            var startCanonical = pointToCanonical[QuantiseKey(m.Start, tolerance)];
-            var endCanonical = pointToCanonical[QuantiseKey(m.End, tolerance)];
-            var startNode = model.NodeMap[startCanonical];
-            var endNode = model.NodeMap[endCanonical];
-            var sectionId = model.SectionMap[m.Section.Key];
-            var materialId = model.MaterialMap[m.Material.Key];
-
-            var create = new MemberCreate
+            var memberCreates = new List<MemberCreate>(members.Count);
+            foreach (var m in members)
             {
-                NodeA = startNode,
-                NodeB = endNode,
-                Section = sectionId,
-                Material = materialId,
-                Type = m.Type
-            };
+                var startCanonical = pointToCanonical[QuantiseKey(m.Start, tolerance)];
+                var endCanonical = pointToCanonical[QuantiseKey(m.End, tolerance)];
+                var startNode = model.NodeMap[startCanonical];
+                var endNode = model.NodeMap[endCanonical];
+                var sectionId = model.SectionMap[m.Section.Key];
+                var materialId = model.MaterialMap[m.Material.Key];
 
-            // Map releases to API model (ADR-0013)
-            // Skip when both ends are fully fixed — no structural effect
-            var hasEffectiveA = m.ReleaseA != null && !m.ReleaseA.IsFullyFixed;
-            var hasEffectiveB = m.ReleaseB != null && !m.ReleaseB.IsFullyFixed;
-            if (hasEffectiveA || hasEffectiveB)
-                create.Releases = new MemberReleaseUpdate
+                var create = new MemberCreate
                 {
-                    FixityCodeAtA = m.ReleaseA?.ReleaseCode,
-                    FixityCodeAtB = m.ReleaseB?.ReleaseCode,
-                    TxStiffnessAtA = m.ReleaseA?.KTx,
-                    TyStiffnessAtA = m.ReleaseA?.KTy,
-                    TzStiffnessAtA = m.ReleaseA?.KTz,
-                    RxStiffnessAtA = m.ReleaseA?.KRx,
-                    RyStiffnessAtA = m.ReleaseA?.KRy,
-                    RzStiffnessAtA = m.ReleaseA?.KRz,
-                    TxStiffnessAtB = m.ReleaseB?.KTx,
-                    TyStiffnessAtB = m.ReleaseB?.KTy,
-                    TzStiffnessAtB = m.ReleaseB?.KTz,
-                    RxStiffnessAtB = m.ReleaseB?.KRx,
-                    RyStiffnessAtB = m.ReleaseB?.KRy,
-                    RzStiffnessAtB = m.ReleaseB?.KRz
+                    NodeA = startNode,
+                    NodeB = endNode,
+                    Section = sectionId,
+                    Material = materialId,
+                    Type = m.Type
                 };
 
-            // Map direction to API model (ADR-0010)
-            // Skip when direction is default (angle=0, axis=NA, no node)
-            if (m.Direction != null && !m.Direction.IsDefault)
-            {
-                create.Direction = new DirectionUpdate
-                {
-                    DirAngle = m.Direction.Angle,
-                    DirAxis = m.Direction.Axis
-                };
+                // Map releases to API model (ADR-0013)
+                // Skip when both ends are fully fixed — no structural effect
+                var hasEffectiveA = m.ReleaseA != null && !m.ReleaseA.IsFullyFixed;
+                var hasEffectiveB = m.ReleaseB != null && !m.ReleaseB.IsFullyFixed;
+                if (hasEffectiveA || hasEffectiveB)
+                    create.Releases = new MemberReleaseUpdate
+                    {
+                        FixityCodeAtA = m.ReleaseA?.ReleaseCode,
+                        FixityCodeAtB = m.ReleaseB?.ReleaseCode,
+                        TxStiffnessAtA = m.ReleaseA?.KTx,
+                        TyStiffnessAtA = m.ReleaseA?.KTy,
+                        TzStiffnessAtA = m.ReleaseA?.KTz,
+                        RxStiffnessAtA = m.ReleaseA?.KRx,
+                        RyStiffnessAtA = m.ReleaseA?.KRy,
+                        RzStiffnessAtA = m.ReleaseA?.KRz,
+                        TxStiffnessAtB = m.ReleaseB?.KTx,
+                        TyStiffnessAtB = m.ReleaseB?.KTy,
+                        TzStiffnessAtB = m.ReleaseB?.KTz,
+                        RxStiffnessAtB = m.ReleaseB?.KRx,
+                        RyStiffnessAtB = m.ReleaseB?.KRy,
+                        RzStiffnessAtB = m.ReleaseB?.KRz
+                    };
 
-                // Resolve direction node point to node ID
-                if (m.Direction.NodePoint != null)
+                // Map direction to API model (ADR-0010)
+                // Skip when direction is default (angle=0, axis=NA, no node)
+                if (m.Direction != null && !m.Direction.IsDefault)
                 {
-                    var dirCanonical = ResolveCanonicalPoint(
-                        m.Direction.NodePoint.Value, pointToCanonical, tolerance);
-                    create.Direction.DirNode = model.NodeMap[dirCanonical];
+                    create.Direction = new DirectionUpdate
+                    {
+                        DirAngle = m.Direction.Angle,
+                        DirAxis = m.Direction.Axis
+                    };
+
+                    // Resolve direction node point to node ID
+                    if (m.Direction.NodePoint != null)
+                    {
+                        var dirCanonical = ResolveCanonicalPoint(
+                            m.Direction.NodePoint.Value, pointToCanonical, tolerance);
+                        create.Direction.DirNode = model.NodeMap[dirCanonical];
+                    }
                 }
+
+                memberCreates.Add(create);
             }
 
-            memberCreates.Add(create);
-        }
-
-        try
-        {
-            createdMembers = await api.CreateMembersAsync(memberCreates, ct)
-                .ConfigureAwait(false);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            throw new InvalidOperationException(FormatApiError(ex, "creating members"), ex);
-        }
-
-        ValidateBulkResult(createdMembers.Count, members.Count, "members");
-
-        for (var i = 0; i < members.Count; i++)
-        {
-            var id = createdMembers[i].Id!.Value;
-            model.MemberMap[id] = (members[i].Start, members[i].End);
-        }
-
-        // ── Step 5b: Create member offsets ─────────────────────────────────
-        var offsetCreates = new List<MemberOffsetCreate>();
-        for (var i = 0; i < members.Count; i++)
-        {
-            var m = members[i];
-            if (m.Offset != null && !m.Offset.IsZero)
+            List<Member> createdMembers;
+            try
             {
+                createdMembers = await api.CreateMembersAsync(memberCreates, ct)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException(FormatApiError(ex, "creating members"), ex);
+            }
+
+            ValidateBulkResult(createdMembers.Count, members.Count, "members");
+
+            for (var i = 0; i < members.Count; i++)
+            {
+                var id = createdMembers[i].Id!.Value;
+                model.MemberMap[id] = (members[i].Start, members[i].End);
+            }
+
+            // ── Step 5b: Create member offsets ─────────────────────────────────
+            var offsetCreates = new List<MemberOffsetCreate>();
+            for (var i = 0; i < members.Count; i++)
+            {
+                var m = members[i];
+                if (m.Offset == null || m.Offset.IsZero) continue;
                 var memberId = createdMembers[i].Id!.Value;
                 offsetCreates.Add(new MemberOffsetCreate
                 {
@@ -469,28 +466,27 @@ public class ModelAssembler
                     Axes = m.Offset.Axes
                 });
             }
-        }
 
-        if (offsetCreates.Count > 0)
-        {
-            List<MemberOffset> createdOffsets;
-            try
+            if (offsetCreates.Count > 0)
             {
-                createdOffsets = await api.CreateMemberOffsetsAsync(offsetCreates, ct)
-                    .ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                throw new InvalidOperationException(
-                    FormatApiError(ex, "creating member offsets"), ex);
-            }
+                List<MemberOffset> createdOffsets;
+                try
+                {
+                    createdOffsets = await api.CreateMemberOffsetsAsync(offsetCreates, ct)
+                        .ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    throw new InvalidOperationException(
+                        FormatApiError(ex, "creating member offsets"), ex);
+                }
 
-            ValidateBulkResult(createdOffsets.Count, offsetCreates.Count, "member offsets");
-        }
+                ValidateBulkResult(createdOffsets.Count, offsetCreates.Count, "member offsets");
+            }
         } // end if (members.Count > 0) — members + offsets
 
         // ── Step 5c: Create plates ────────────────────────────────────────
@@ -1701,26 +1697,28 @@ public class ModelAssembler
     /// </summary>
     public static string FormatApiError(Exception ex, string operation)
     {
-        if (ex is ErrorResponse errorResponse)
+        switch (ex)
         {
-            var parts = new List<string> { $"SpaceGass error during {operation}:" };
-            if (!string.IsNullOrEmpty(errorResponse.Title))
-                parts.Add(errorResponse.Title);
-            if (!string.IsNullOrEmpty(errorResponse.Detail))
-                parts.Add(errorResponse.Detail);
-            if (errorResponse.Errors?.Count > 0)
-                foreach (var err in errorResponse.Errors.Take(5))
-                    parts.Add($"  - {err.Message}");
-            if (!string.IsNullOrEmpty(errorResponse.Message) &&
-                errorResponse.Message != ex.GetType().FullName)
-                parts.Add(errorResponse.Message);
-            return string.Join("\n", parts);
+            case ErrorResponse errorResponse:
+            {
+                var parts = new List<string> { $"SpaceGass error during {operation}:" };
+                if (!string.IsNullOrEmpty(errorResponse.Title))
+                    parts.Add(errorResponse.Title);
+                if (!string.IsNullOrEmpty(errorResponse.Detail))
+                    parts.Add(errorResponse.Detail);
+                if (errorResponse.Errors?.Count > 0)
+                    foreach (var err in errorResponse.Errors.Take(5))
+                        parts.Add($"  - {err.Message}");
+                if (!string.IsNullOrEmpty(errorResponse.Message) &&
+                    errorResponse.Message != ex.GetType().FullName)
+                    parts.Add(errorResponse.Message);
+                return string.Join("\n", parts);
+            }
+            case ApiException apiEx:
+                return $"SpaceGass API error during {operation}: {apiEx.Message} (HTTP {apiEx.ResponseStatusCode})";
+            default:
+                return $"Error during {operation}: {ex.Message}";
         }
-
-        if (ex is ApiException apiEx)
-            return $"SpaceGass API error during {operation}: {apiEx.Message} (HTTP {apiEx.ResponseStatusCode})";
-
-        return $"Error during {operation}: {ex.Message}";
     }
 
     /// <summary>
@@ -1867,11 +1865,9 @@ public class ModelAssembler
                 }
             }
 
-            if (!found)
-            {
-                unique.Add(pt);
-                grid[key] = pt;
-            }
+            if (found) continue;
+            unique.Add(pt);
+            grid[key] = pt;
         }
 
         return (unique, grid);
