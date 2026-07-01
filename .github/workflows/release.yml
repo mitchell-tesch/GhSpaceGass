@@ -1,0 +1,51 @@
+name: Release Yak Package
+
+on:
+  release:
+    types: [ published ]
+
+jobs:
+  build-and-publish:
+    name: Build and Publish Yak Package
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
+
+    - name: Restore dependencies
+      run: dotnet restore GhSpaceGass.slnx
+
+    - name: Build Release
+      run: dotnet build GhSpaceGass.slnx --no-restore --configuration Release -m:1
+      
+# Dipendency Injection required for CI testing - to be added in future
+#    - name: Test
+#      run: dotnet test GhSpaceGass.slnx --no-build --configuration Release --verbosity normal
+
+    - name: Download Yak
+      run: |
+        curl -Lo yak.exe "https://files.mcneel.com/yak/tools/latest/yak.exe"
+
+    - name: Build Yak Package
+      run: |
+        cd GhSpaceGass/bin/Release/net8.0
+        ../../../../yak.exe build
+
+    - name: Publish Yak Package
+      env:
+        YAK_TOKEN: ${{ secrets.YAK_TOKEN }}
+      run: |
+        cd GhSpaceGass/bin/Release/net8.0
+        $yakPackage = Get-ChildItem -Filter "*.yak" | Select-Object -First 1
+        ../../../../yak.exe push $yakPackage.Name
+
+    - name: Upload Yak Package as Release Asset
+      uses: softprops/action-gh-release@v2
+      with:
+        files: GhSpaceGass/bin/Release/net8.0/*.yak
+

@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <NoWarn>NU1701</NoWarn>
+        <AssemblyName>GhSpaceGass.Core</AssemblyName>
+        <RootNamespace>GhSpaceGass.Core</RootNamespace>
+        <PackageId>GhSpaceGass.Core</PackageId>
+        <Authors>GhSpaceGass.Core</Authors>
+        <Company>GhSpaceGass.Core</Company>
+        <Product>GhSpaceGass.Core</Product>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="GhSpaceGass.Tests"/>
+        <InternalsVisibleTo Include="DynamicProxyGenAssembly2"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="SpaceGassApi" Version="14.50.134-beta1"/>
+    </ItemGroup>
+
+</Project>
+
+
+

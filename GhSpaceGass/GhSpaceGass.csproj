@@ -1,0 +1,65 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <EnableDynamicLoading>true</EnableDynamicLoading>
+        <TargetExt>.gha</TargetExt>
+        <NoWarn>NU1701;CA1416</NoWarn>
+        <AssemblyName>GhSpaceGass</AssemblyName>
+        <RootNamespace>GhSpaceGass</RootNamespace>
+        <PackageId>GhSpaceGass</PackageId>
+        <Product>GhSpaceGass</Product>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\GhSpaceGass.Core\GhSpaceGass.Core.csproj"/>
+    </ItemGroup>
+
+    <PropertyGroup>
+        <!-- Specifies information for Assembly and Yak -->
+        <Version>0.1.0</Version>
+        <Title>GhSpaceGass</Title>
+        <Authors>Mitchell Tesch</Authors>
+        <Company>GhSpaceGass</Company>
+        <Description>Grasshopper plug-in for SpaceGass</Description>
+        <PackageProjectUrl>https://github.com/mitchell-tesch/GhSpaceGass</PackageProjectUrl>
+        <PackageLicenseUrl>https://github.com/mitchell-tesch/GhSpaceGass/LICENSE</PackageLicenseUrl>
+        <PackageTags>rhino;grasshopper;spacegass;structural;analysis;engineering;design</PackageTags>
+        <RepositoryUrl>https://github.com/mitchell-tesch/GhSpaceGass</RepositoryUrl>
+        <Copyright>Copyright © Mitchell Tesch</Copyright>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Grasshopper" Version="8.0.23304.9001" ExcludeAssets="runtime"/>
+        <PackageReference Include="System.Drawing.Common" Version="8.0.27"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="../yak/manifest.yml" CopyToOutputDirectory="PreserveNewest" Link="manifest.yml"/>
+        <None Include="../yak/icon.png" CopyToOutputDirectory="PreserveNewest" Link="icon.png"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.WindowsDesktop.App"/>
+    </ItemGroup>
+
+
+    <Target Name="BuildYakPackage"  AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
+        <PropertyGroup>
+            <YakExecutable Condition="$(YakExecutable) == '' and $([MSBuild]::IsOSPlatform(windows)) and Exists('C:\Program Files\Rhino 8\System\Yak.exe')">C:\Program Files\Rhino 8\System\Yak.exe</YakExecutable>
+            <BuildYakPackage Condition="$(BuildYakPackage) == '' and $(YakExecutable) != '' and Exists($(YakExecutable))">True</BuildYakPackage>
+        </PropertyGroup>
+
+        <Warning Text="Could not find Yak executable" Condition="$(YakExecutable) == ''"/>
+
+        <ItemGroup>
+            <YakPackagesToDelete Include="$(OutputPath)\*.yak"/>
+        </ItemGroup>
+
+        <Delete Files="@(YakPackagesToDelete)"/>
+
+        <Exec Command="&quot;$(YakExecutable)&quot; build" WorkingDirectory="$(OutputPath)" Condition="$(BuildYakPackage) == 'True'"/>
+
+    </Target>
+
+</Project>

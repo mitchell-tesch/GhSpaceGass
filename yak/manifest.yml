@@ -1,0 +1,16 @@
+---
+name: GhSpaceGass
+version: 0.1.0
+authors:
+  - Mitchell Tesch
+description: >
+  A Grasshopper plug-in that provides a full round-trip workflow between Grasshopper and Space Gass structural analysis via the Space Gass REST API.
+  Build parametric structural models in Grasshopper, push them to Space Gass, run analysis, and pull results back — all without leaving the canvas.
+url: https://github.com/mitchell-tesch/GhSpaceGass
+icon: icon.png
+keywords:
+  - space gass
+  - structural
+  - analysis
+  - engineering
+  - design

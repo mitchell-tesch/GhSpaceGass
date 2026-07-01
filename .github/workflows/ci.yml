@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    name: Build and Test
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
+
+    - name: Restore dependencies
+      run: dotnet restore GhSpaceGass.slnx
+
+    - name: Build
+      run: dotnet build GhSpaceGass.slnx --no-restore --configuration Release -m:1
+
+# Dipendency Injection required for CI testing - to be added in future
+#    - name: Test
+#      run: dotnet test GhSpaceGass.slnx --no-build --configuration Release --verbosity normal
+
+    - name: Upload Build Artifacts
+      if: github.ref == 'refs/heads/master'
+      uses: actions/upload-artifact@v4
+      with:
+        name: GhSpaceGass
+        path: |
+          GhSpaceGass/bin/Release/net8.0/
+          !GhSpaceGass/bin/Release/net8.0/*.pdb
+
