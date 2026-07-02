@@ -30,7 +30,9 @@ public class GhSpaceGassPriority : GH_AssemblyPriority
 {
     public override GH_LoadingInstruction PriorityLoad()
     {
-        Instances.DocumentServer.DocumentRemoved += (s, e) =>
+        Instances.ComponentServer.AddCategoryIcon("SpaceGass", Icons.IconFactory.TabIcon());
+
+        Instances.DocumentServer.DocumentRemoved += (_, _) =>
         {
             // When the last document is closed, clean up
             if (Instances.DocumentServer.DocumentCount == 0)

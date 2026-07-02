@@ -17,7 +17,7 @@
 
     <PropertyGroup>
         <!-- Specifies information for Assembly and Yak -->
-        <Version>0.1.0</Version>
+        <Version>0.2.0</Version>
         <Title>GhSpaceGass</Title>
         <Authors>Mitchell Tesch</Authors>
         <Company>GhSpaceGass</Company>
@@ -37,6 +37,7 @@
     <ItemGroup>
         <None Include="../yak/manifest.yml" CopyToOutputDirectory="PreserveNewest" Link="manifest.yml"/>
         <None Include="../yak/icon.png" CopyToOutputDirectory="PreserveNewest" Link="icon.png"/>
+        <EmbeddedResource Include="../yak/icon.png" LogicalName="GhSpaceGass.Icons.icon.png"/>
     </ItemGroup>
 
     <ItemGroup>

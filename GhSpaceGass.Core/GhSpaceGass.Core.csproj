@@ -19,7 +19,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="SpaceGassApi" Version="14.50.134-beta1"/>
+        <PackageReference Include="SpaceGassApi" Version="14.50.134-beta2" />
     </ItemGroup>
 
 </Project>
