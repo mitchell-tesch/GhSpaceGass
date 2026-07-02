@@ -489,7 +489,12 @@ internal class SpaceGassApiWrapper : ISpaceGassApi
 
     public async Task<List<LoadCase>> ListLoadCasesAsync(CancellationToken ct = default)
     {
-        return await _client.Job.Loads.LoadCases.GetAsync(cancellationToken: ct).ConfigureAwait(false)
+        return await _client.Job.Loads.LoadCases.GetAsync(
+           config =>
+           {
+               config.QueryParameters.ExpandAsExpandOption = ExpandOption.All;
+           },
+           ct).ConfigureAwait(false) 
                ?? new List<LoadCase>();
     }
 

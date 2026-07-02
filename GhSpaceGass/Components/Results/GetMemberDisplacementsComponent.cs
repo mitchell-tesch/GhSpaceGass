@@ -29,6 +29,7 @@ public class GetMemberDisplacementsComponent : GH_AsyncComponent<GetMemberDispla
     private int _outTxGlobal, _outTyGlobal, _outTzGlobal;
     private int _outTxLocal, _outTyLocal, _outTzLocal;
     private int _outWarnings;
+    private int _outStatus;
 
     public GetMemberDisplacementsComponent()
         : base("SG Member Displacements", "sgMemberDisp",
@@ -65,10 +66,10 @@ public class GetMemberDisplacementsComponent : GH_AsyncComponent<GetMemberDispla
         _outLoadCases = pManager.AddTextParameter("Load Cases", "LC",
             "Load case names, one per branch matching the load case dimension of the results tree.",
             GH_ParamAccess.tree);
-        _outMembers = pManager.AddIntegerParameter("Members", "Mb",
+        _outMembers = pManager.AddIntegerParameter("Member IDs", "MIds",
             "Member IDs, branched by {load_case; member}.",
             GH_ParamAccess.tree);
-        _outLines = pManager.AddLineParameter("Lines", "L",
+        _outLines = pManager.AddLineParameter("Member Lines", "MLns",
             "Member geometry, branched by {load_case; member}.",
             GH_ParamAccess.tree);
         _outStations = pManager.AddNumberParameter("Stations", "S",
@@ -95,6 +96,8 @@ public class GetMemberDisplacementsComponent : GH_AsyncComponent<GetMemberDispla
         _outWarnings = pManager.AddTextParameter("Warnings", "W",
             "Warnings from the SpaceGass API query (multiline text).",
             GH_ParamAccess.item);
+        _outStatus = pManager.AddTextParameter("Status", "S",
+            "Query status summary.", GH_ParamAccess.item);
     }
 
     public override void AppendAdditionalMenuItems(ToolStripDropDown menu)
@@ -212,6 +215,7 @@ public class GetMemberDisplacementsComponent : GH_AsyncComponent<GetMemberDispla
             if (result.Displacements.Count == 0)
             {
                 Parent.Message = "No displacements";
+                Status = "0 member displacements queried.";
                 OutLines = new GH_Structure<GH_Line>();
                 OutStations = new GH_Structure<GH_Number>();
                 OutTxGlobal = new GH_Structure<GH_Number>();
@@ -310,6 +314,7 @@ public class GetMemberDisplacementsComponent : GH_AsyncComponent<GetMemberDispla
             }
 
             Parent.Message = $"{result.Displacements.Count} displacements";
+            Status = $"{result.Displacements.Count} member displacements queried.";
         }
 
         public override void SetData(IGH_DataAccess da)
@@ -325,6 +330,7 @@ public class GetMemberDisplacementsComponent : GH_AsyncComponent<GetMemberDispla
             if (OutLoadCases != null) da.SetDataTree(Parent._outLoadCases, OutLoadCases);
             if (OutMembers != null) da.SetDataTree(Parent._outMembers, OutMembers);
             da.SetData(Parent._outWarnings, OutWarningsText ?? "");
+            da.SetData(Parent._outStatus, Status);
         }
     }
 }

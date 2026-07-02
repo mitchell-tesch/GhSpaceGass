@@ -19,7 +19,7 @@ namespace GhSpaceGass.Components.Results;
 public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsComponent>
 {
     private int _inModel, _inPoints, _inLoadCases;
-    private int _outPoints, _outFx, _outFy, _outFz, _outMx, _outMy, _outMz, _outLoadCases, _outNodes, _outWarnings;
+    private int _outPoints, _outFx, _outFy, _outFz, _outMx, _outMy, _outMz, _outLoadCases, _outNodes, _outWarnings, _outStatus;
 
     public GetNodeReactionsComponent()
         : base("SG Node Reactions", "sgReactions",
@@ -55,10 +55,10 @@ public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsCompo
         _outLoadCases = pManager.AddTextParameter("Load Cases", "LC",
             "Load case names, one per branch matching the results tree.",
             GH_ParamAccess.tree);
-        _outNodes = pManager.AddIntegerParameter("Nodes", "N",
+        _outNodes = pManager.AddIntegerParameter("Node IDs", "NIds",
             "Node IDs, branched by load case.",
             GH_ParamAccess.tree);
-        _outPoints = pManager.AddPointParameter("Points", "P",
+        _outPoints = pManager.AddPointParameter("Node Points", "P",
             "Reaction node locations, branched by load case.",
             GH_ParamAccess.tree);
         _outFx = pManager.AddNumberParameter("Fx", "Fx",
@@ -82,6 +82,8 @@ public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsCompo
         _outWarnings = pManager.AddTextParameter("Warnings", "W",
             "Warnings from the SpaceGass API query (multiline text).",
             GH_ParamAccess.item);
+        _outStatus = pManager.AddTextParameter("Status", "S",
+            "Query status summary.", GH_ParamAccess.item);
     }
 
     public override void AppendAdditionalMenuItems(ToolStripDropDown menu)
@@ -178,6 +180,7 @@ public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsCompo
             if (result.Reactions.Count == 0)
             {
                 Parent.Message = "No reactions";
+                Status = "0 node reactions queried.";
                 OutPoints = new GH_Structure<GH_Point>();
                 OutFx = new GH_Structure<GH_Number>();
                 OutFy = new GH_Structure<GH_Number>();
@@ -228,6 +231,7 @@ public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsCompo
             }
 
             Parent.Message = $"{result.Reactions.Count} reactions";
+            Status = $"{result.Reactions.Count} node reactions queried.";
         }
 
         public override void SetData(IGH_DataAccess da)
@@ -242,6 +246,7 @@ public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsCompo
             if (OutLoadCases != null) da.SetDataTree(Parent._outLoadCases, OutLoadCases);
             if (OutNodes != null) da.SetDataTree(Parent._outNodes, OutNodes);
             da.SetData(Parent._outWarnings, OutWarningsText ?? "");
+            da.SetData(Parent._outStatus, Status);
         }
     }
 }

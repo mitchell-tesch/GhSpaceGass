@@ -33,6 +33,7 @@ public class GetDynamicFrequencyResultsComponent : GH_AsyncComponent<GetDynamicF
     private int _outRx, _outRy, _outRz;
     private int _outTx, _outTy, _outTz;
     private int _outWarnings;
+    private int _outStatus;
 
     public GetDynamicFrequencyResultsComponent()
         : base("SG Dynamic Frequencies", "sgDynFreq",
@@ -82,19 +83,19 @@ public class GetDynamicFrequencyResultsComponent : GH_AsyncComponent<GetDynamicF
         _outPeriod = pManager.AddNumberParameter("Period", "P",
             "Natural period (seconds), branched by {load_case; mode}.",
             GH_ParamAccess.tree);
-        _outMassPartX = pManager.AddNumberParameter("Mass Part X", "MpX",
+        _outMassPartX = pManager.AddNumberParameter("Mass Part. X", "MpX",
             "Mass participation ratio in X, branched by {load_case; mode}.",
             GH_ParamAccess.tree);
-        _outMassPartY = pManager.AddNumberParameter("Mass Part Y", "MpY",
+        _outMassPartY = pManager.AddNumberParameter("Mass Part. Y", "MpY",
             "Mass participation ratio in Y, branched by {load_case; mode}.",
             GH_ParamAccess.tree);
-        _outMassPartZ = pManager.AddNumberParameter("Mass Part Z", "MpZ",
+        _outMassPartZ = pManager.AddNumberParameter("Mass Part. Z", "MpZ",
             "Mass participation ratio in Z, branched by {load_case; mode}.",
             GH_ParamAccess.tree);
-        _outNodes = pManager.AddIntegerParameter("Nodes", "N",
+        _outNodes = pManager.AddIntegerParameter("Node IDs", "NIds",
             "Node IDs, branched by {load_case; mode}.",
             GH_ParamAccess.tree);
-        _outPoints = pManager.AddPointParameter("Points", "Pt",
+        _outPoints = pManager.AddPointParameter("Node Points", "Pt",
             "Node locations for mode shapes, branched by {load_case; mode}.",
             GH_ParamAccess.tree);
         _outTx = pManager.AddNumberParameter("Tx", "Tx",
@@ -118,6 +119,8 @@ public class GetDynamicFrequencyResultsComponent : GH_AsyncComponent<GetDynamicF
         _outWarnings = pManager.AddTextParameter("Warnings", "W",
             "Warnings from the SpaceGass API query (multiline text).",
             GH_ParamAccess.item);
+        _outStatus = pManager.AddTextParameter("Status", "S",
+            "Query status summary.", GH_ParamAccess.item);
     }
 
     public override void AppendAdditionalMenuItems(ToolStripDropDown menu)
@@ -267,6 +270,7 @@ public class GetDynamicFrequencyResultsComponent : GH_AsyncComponent<GetDynamicF
             if (result.NaturalFrequencies.Count == 0 && result.ModeShapes.Count == 0)
             {
                 Parent.Message = "No dynamic frequency results";
+                Status = "0 frequencies, 0 mode shapes queried.";
                 return;
             }
 
@@ -379,6 +383,7 @@ public class GetDynamicFrequencyResultsComponent : GH_AsyncComponent<GetDynamicF
             var nfCount = result.NaturalFrequencies.Count;
             var msCount = result.ModeShapes.Count;
             Parent.Message = $"{nfCount} frequencies, {msCount} mode shapes";
+            Status = $"{nfCount} frequencies, {msCount} mode shapes queried.";
         }
 
         public override void SetData(IGH_DataAccess da)
@@ -399,6 +404,7 @@ public class GetDynamicFrequencyResultsComponent : GH_AsyncComponent<GetDynamicF
             if (OutLoadCases != null) da.SetDataTree(Parent._outLoadCases, OutLoadCases);
             if (OutNodes != null) da.SetDataTree(Parent._outNodes, OutNodes);
             da.SetData(Parent._outWarnings, OutWarningsText ?? "");
+            da.SetData(Parent._outStatus, Status);
         }
     }
 }
