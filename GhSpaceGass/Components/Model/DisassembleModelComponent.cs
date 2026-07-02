@@ -55,32 +55,32 @@ public class DisassembleModelComponent : GH_AsyncComponent<DisassembleModelCompo
             "Model", "M",
             "The SpaceGass model with ID ↔ geometry mappings for downstream chaining.",
             GH_ParamAccess.item);
-        _outPoints = pManager.AddPointParameter("Points", "Pts",
-            "All node locations, ordered by node ID.",
-            GH_ParamAccess.list);
         _outNodeIds = pManager.AddIntegerParameter("Node IDs", "NId",
             "Node IDs, matching Points order.",
             GH_ParamAccess.list);
-        _outLines = pManager.AddLineParameter("Lines", "Ln",
-            "Member geometry (node A → node B), ordered by member ID.",
+        _outPoints = pManager.AddPointParameter("Node Points", "NPts",
+            "All node locations, ordered by node ID.",
             GH_ParamAccess.list);
         _outMemberIds = pManager.AddIntegerParameter("Member IDs", "MId",
             "Member IDs, matching Lines order.",
             GH_ParamAccess.list);
+        _outLines = pManager.AddLineParameter("Member Lines", "MLns",
+            "Member geometry (node A → node B), ordered by member ID.",
+            GH_ParamAccess.list);
         _outMemberTypes = pManager.AddTextParameter("Member Types", "MT",
             "Type name per member (Beam, Truss, etc.), matching Lines order.",
             GH_ParamAccess.list);
-        _outMemberSections = pManager.AddIntegerParameter("Member Sections", "MS",
+        _outMemberSections = pManager.AddIntegerParameter("Member Sections", "MSec",
             "Section ID per member, matching Lines order. Resolve to names via the SectionMap on the Model output.",
             GH_ParamAccess.list);
-        _outMemberMaterials = pManager.AddIntegerParameter("Member Materials", "MM",
+        _outMemberMaterials = pManager.AddIntegerParameter("Member Materials", "MMat",
             "Material ID per member, matching Lines order. Resolve to names via the MaterialMap on the Model output.",
-            GH_ParamAccess.list);
-        _outMeshes = pManager.AddMeshParameter("Meshes", "Msh",
-            "One mesh per plate element (tri or quad face), ordered by plate ID.",
             GH_ParamAccess.list);
         _outPlateIds = pManager.AddIntegerParameter("Plate IDs", "PId",
             "Plate IDs, matching Meshes order.",
+            GH_ParamAccess.list);
+        _outMeshes = pManager.AddMeshParameter("Plate Meshes", "PMsh",
+            "One mesh per plate element (tri or quad face), ordered by plate ID.",
             GH_ParamAccess.list);
         _outStatus = pManager.AddTextParameter("Status", "S",
             "Disassembly status and warnings.",

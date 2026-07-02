@@ -10,22 +10,22 @@ using Grasshopper.Kernel;
 
 namespace GhSpaceGass.Components.Properties;
 
-public class GetMaterialPropertiesComponent : GH_AsyncComponent<GetMaterialPropertiesComponent>
+public class GetMaterialsComponent : GH_AsyncComponent<GetMaterialsComponent>
 {
     private int _inModel;
     private int _outIds, _outNames, _outLibraries, _outSources;
     private int _outE, _outPoissons, _outDensity, _outThermal, _outConcrete;
     private int _outStatus;
 
-    public GetMaterialPropertiesComponent()
-        : base("SG Material Properties", "sgMaterialProps",
+    public GetMaterialsComponent()
+        : base("SG Get Materials", "sgGetMaterials",
             "Query all material properties from the open SpaceGass job.",
             "SpaceGass", "2 | Properties")
     {
         BaseWorker = new GetMaterialPropertiesWorker(this);
     }
 
-    public override GH_Exposure Exposure => GH_Exposure.tertiary;
+    public override GH_Exposure Exposure => GH_Exposure.last;
     protected override Bitmap Icon => Icons.IconFactory.GetMaterialProperties();
     public override Guid ComponentGuid => new("2BD9BCEE-1239-4E95-B516-6818CF2FD8A3");
 
@@ -40,25 +40,35 @@ public class GetMaterialPropertiesComponent : GH_AsyncComponent<GetMaterialPrope
     protected override void RegisterOutputParams(GH_OutputParamManager pManager)
     {
         _outIds = pManager.AddIntegerParameter("IDs", "Id",
-            "SpaceGass material IDs.", GH_ParamAccess.list);
+            "SpaceGass material IDs.",
+            GH_ParamAccess.list);
         _outNames = pManager.AddTextParameter("Names", "N",
-            "Material names.", GH_ParamAccess.list);
-        _outLibraries = pManager.AddTextParameter("Libraries", "Lib",
-            "Library names (empty string for custom materials).", GH_ParamAccess.list);
+            "Material names.",
+            GH_ParamAccess.list);
         _outSources = pManager.AddTextParameter("Sources", "Src",
-            "Property source: \"Library\" or \"User\".", GH_ParamAccess.list);
+            "Property source: \"Library\" or \"User\".",
+            GH_ParamAccess.list);
+        _outLibraries = pManager.AddTextParameter("Libraries", "Lib",
+            "Library names (empty string for custom materials).",
+            GH_ParamAccess.list);
         _outE = pManager.AddNumberParameter("Youngs Modulus", "E",
-            "Young's modulus (E).", GH_ParamAccess.list);
+            "Young's modulus (E).",
+            GH_ParamAccess.list);
         _outPoissons = pManager.AddNumberParameter("Poissons Ratio", "PR",
-            "Poisson's ratio.", GH_ParamAccess.list);
+            "Poisson's ratio.",
+            GH_ParamAccess.list);
         _outDensity = pManager.AddNumberParameter("Density", "D",
-            "Mass density.", GH_ParamAccess.list);
+            "Mass density.",
+            GH_ParamAccess.list);
         _outThermal = pManager.AddNumberParameter("Thermal Coefficient", "TC",
-            "Thermal expansion coefficient.", GH_ParamAccess.list);
+            "Thermal expansion coefficient.",
+            GH_ParamAccess.list);
         _outConcrete = pManager.AddNumberParameter("Concrete Strength", "fc",
-            "Concrete characteristic strength (0 if not applicable).", GH_ParamAccess.list);
+            "Concrete characteristic strength (0 if not applicable).",
+            GH_ParamAccess.list);
         _outStatus = pManager.AddTextParameter("Status", "S",
-            "Query status and warnings.", GH_ParamAccess.item);
+            "Query status and warnings.",
+            GH_ParamAccess.item);
     }
 
     public override void AppendAdditionalMenuItems(ToolStripDropDown menu)
@@ -69,10 +79,10 @@ public class GetMaterialPropertiesComponent : GH_AsyncComponent<GetMaterialPrope
 
     // ── Worker ────────────────────────────────────────────────────
 
-    private sealed class GetMaterialPropertiesWorker : WorkerInstance<GetMaterialPropertiesComponent>
+    private sealed class GetMaterialPropertiesWorker : WorkerInstance<GetMaterialsComponent>
     {
         public GetMaterialPropertiesWorker(
-            GetMaterialPropertiesComponent parent,
+            GetMaterialsComponent parent,
             string id = "baseWorker",
             CancellationToken cancellationToken = default)
             : base(parent, id, cancellationToken) { }
@@ -81,7 +91,7 @@ public class GetMaterialPropertiesComponent : GH_AsyncComponent<GetMaterialPrope
         private SgMaterialPropertiesResult Result { get; set; }
         private string Status { get; set; } = string.Empty;
 
-        public override WorkerInstance<GetMaterialPropertiesComponent> Duplicate(
+        public override WorkerInstance<GetMaterialsComponent> Duplicate(
             string id, CancellationToken cancellationToken)
             => new GetMaterialPropertiesWorker(Parent, id, cancellationToken);
 

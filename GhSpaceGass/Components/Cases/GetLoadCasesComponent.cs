@@ -10,7 +10,7 @@ using Grasshopper.Kernel;
 using Grasshopper.Kernel.Data;
 using Grasshopper.Kernel.Types;
 
-namespace GhSpaceGass.Components.Loads;
+namespace GhSpaceGass.Components.Cases;
 
 public class GetLoadCasesComponent : GH_AsyncComponent<GetLoadCasesComponent>
 {
@@ -21,15 +21,15 @@ public class GetLoadCasesComponent : GH_AsyncComponent<GetLoadCasesComponent>
     private int _outStatus;
 
     public GetLoadCasesComponent()
-        : base("SG Load Cases", "sgLoadCases",
+        : base("SG Get Load Cases", "sgGetLoadCases",
             "Query all load cases, load categories, and load case groups from the open SpaceGass job.",
             "SpaceGass", "4 | Cases")
     {
         BaseWorker = new GetLoadCasesWorker(this);
     }
 
-    public override GH_Exposure Exposure => GH_Exposure.septenary;
-    protected override Bitmap Icon => Icons.IconFactory.LoadCase();
+    public override GH_Exposure Exposure => GH_Exposure.last;
+    protected override Bitmap Icon => Icons.IconFactory.GetLoadCases();
     public override Guid ComponentGuid => new("0F776D3B-DA87-4DDE-AC8D-6D0ADFFA5792");
 
     protected override void RegisterInputParams(GH_InputParamManager pManager)
@@ -42,33 +42,49 @@ public class GetLoadCasesComponent : GH_AsyncComponent<GetLoadCasesComponent>
 
     protected override void RegisterOutputParams(GH_OutputParamManager pManager)
     {
-        _outIds = pManager.AddIntegerParameter("IDs", "Id",
-            "Load case IDs.", GH_ParamAccess.list);
-        _outNames = pManager.AddTextParameter("Names", "N",
-            "Load case titles.", GH_ParamAccess.list);
-        _outTypes = pManager.AddTextParameter("Types", "Ty",
-            "Load case type: Primary, Combination, Step, or Unused.", GH_ParamAccess.list);
-        _outNotes = pManager.AddTextParameter("Notes", "Nt",
-            "Load case notes (empty if none).", GH_ParamAccess.list);
-        _outCombinationItems = pManager.AddTextParameter("Combination Items", "CI",
+        // Load Cases
+        _outIds = pManager.AddIntegerParameter("Case ID", "LC-Id",
+            "Load case IDs.",
+            GH_ParamAccess.list);
+        _outNames = pManager.AddTextParameter("Case Name", "LC-Ns",
+            "Load case titles.",
+            GH_ParamAccess.list);
+        _outTypes = pManager.AddTextParameter("Case Type", "LC-Ty",
+            "Load case type: Primary, Combination, Step, or Unused.",
+            GH_ParamAccess.list);
+        _outNotes = pManager.AddTextParameter("Case Notes", "LC-Nt",
+            "Load case notes (empty if none).",
+            GH_ParamAccess.list);
+        _outCombinationItems = pManager.AddTextParameter("Combination Case Items", "LC-CI",
             "Combination constituents per load case (branched). Empty branch for non-combination cases.\n" +
             "Format: \"Factor×LoadCaseName\".",
             GH_ParamAccess.tree);
-        _outCatIds = pManager.AddIntegerParameter("Category IDs", "CId",
-            "Load category IDs.", GH_ParamAccess.list);
-        _outCatNames = pManager.AddTextParameter("Categories", "Cat",
-            "Load category names.", GH_ParamAccess.list);
-        _outCatNotes = pManager.AddTextParameter("Category Notes", "CNt",
-            "Load category notes (empty if none).", GH_ParamAccess.list);
-        _outGrpIds = pManager.AddIntegerParameter("Group IDs", "GId",
-            "Load case group IDs.", GH_ParamAccess.list);
-        _outGrpNames = pManager.AddTextParameter("Groups", "Grp",
-            "Load case group titles.", GH_ParamAccess.list);
-        _outGrpCases = pManager.AddTextParameter("Group Cases", "GC",
+        
+        // Load Categories
+        _outCatIds = pManager.AddIntegerParameter("Category ID", "C-Id",
+            "Load category IDs.",
+            GH_ParamAccess.list);
+        _outCatNames = pManager.AddTextParameter("Category Name", "C-N",
+            "Load category names.",
+            GH_ParamAccess.list);
+        _outCatNotes = pManager.AddTextParameter("Category Note", "C-Nt",
+            "Load category notes (empty if none).",
+            GH_ParamAccess.list);
+        
+        // Load Groups
+        _outGrpIds = pManager.AddIntegerParameter("Group ID", "G-Id",
+            "Load case group IDs.",
+            GH_ParamAccess.list);
+        _outGrpNames = pManager.AddTextParameter("Group Name", "G-N",
+            "Load case group titles.",
+            GH_ParamAccess.list);
+        _outGrpCases = pManager.AddTextParameter("Group Cases", "G-C",
             "Load case list per group (branched). Comma-separated ID list from SpaceGass.",
             GH_ParamAccess.tree);
+        
         _outStatus = pManager.AddTextParameter("Status", "S",
-            "Query status and warnings.", GH_ParamAccess.item);
+            "Query status and warnings.",
+            GH_ParamAccess.item);
     }
 
     public override void AppendAdditionalMenuItems(ToolStripDropDown menu)

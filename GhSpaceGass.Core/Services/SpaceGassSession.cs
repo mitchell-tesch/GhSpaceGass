@@ -759,6 +759,490 @@ public class SpaceGassSession : IDisposable
     }
 
     /// <summary>
+    ///     Queries all self-weight loads from the open job.
+    /// </summary>
+    public async Task<SgSelfWeightLoadsDataResult> GetSelfWeightLoadsDataAsync(
+        SgModelData model, CancellationToken ct = default)
+    {
+        if (!IsConnected)
+            throw new InvalidOperationException("Not connected to SpaceGass");
+
+        var result = new SgSelfWeightLoadsDataResult();
+
+        List<SelfWeightLoad> apiLoads;
+        try
+        {
+            apiLoads = await _api!.ListSelfWeightLoadsAsync(ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                ModelAssembler.FormatApiError(ex, "querying self-weight loads"), ex);
+        }
+
+        var idToName = BuildLoadCaseIdToNameMap(model);
+        foreach (var sw in apiLoads)
+        {
+            if (sw.LoadCase == null) continue;
+            result.Loads.Add(new SgSelfWeightLoadInfo(
+                sw.LoadCase.Value,
+                ResolveLoadCaseName(idToName, sw.LoadCase.Value),
+                sw.LoadCategory ?? 0,
+                sw.AccelerationX ?? 0,
+                sw.AccelerationY ?? 0,
+                sw.AccelerationZ ?? 0));
+        }
+
+        if (result.Loads.Count == 0)
+            result.Warnings.Add("No self-weight loads found in the open job.");
+
+        return result;
+    }
+
+    /// <summary>
+    ///     Resolves a load case ID to its name using the model's LoadCaseMap and CombinationLoadCaseMap.
+    /// </summary>
+    private static string ResolveLoadCaseName(SgModelData model, int loadCaseId)
+    {
+        return ResolveLoadCaseName(BuildLoadCaseIdToNameMap(model), loadCaseId);
+    }
+
+    /// <summary>
+    ///     Resolves a load case ID to its name using a pre-built reverse lookup.
+    /// </summary>
+    private static string ResolveLoadCaseName(Dictionary<int, string> idToName, int loadCaseId)
+    {
+        return idToName.TryGetValue(loadCaseId, out var name) ? name : $"LC{loadCaseId}";
+    }
+
+    /// <summary>
+    ///     Builds a reverse lookup dictionary (ID → name) from the model's load case maps.
+    /// </summary>
+    private static Dictionary<int, string> BuildLoadCaseIdToNameMap(SgModelData model)
+    {
+        var map = new Dictionary<int, string>();
+        foreach (var kvp in model.LoadCaseMap)
+            map[kvp.Value] = kvp.Key;
+        foreach (var kvp in model.CombinationLoadCaseMap)
+            map[kvp.Value] = kvp.Key;
+        return map;
+    }
+
+    /// <summary>
+    ///     Queries all node-based loads (node loads, lumped mass, prescribed displacements)
+    ///     from the open job, grouped by node.
+    /// </summary>
+    public async Task<SgNodeLoadsDataResult> GetNodeLoadsDataAsync(
+        SgModelData model, CancellationToken ct = default)
+    {
+        if (!IsConnected)
+            throw new InvalidOperationException("Not connected to SpaceGass");
+
+        var result = new SgNodeLoadsDataResult();
+        var lcMap = BuildLoadCaseIdToNameMap(model);
+        var nodeIdToPoint = BuildNodeIdToPointMap(model);
+        var entries = new SortedDictionary<int, SgNodeLoadEntry>();
+
+        SgNodeLoadEntry GetOrCreateEntry(int nodeId)
+        {
+            if (entries.TryGetValue(nodeId, out var existing))
+                return existing;
+            if (!nodeIdToPoint.TryGetValue(nodeId, out var point))
+                return null!;
+            var entry = new SgNodeLoadEntry(nodeId, point);
+            entries[nodeId] = entry;
+            return entry;
+        }
+
+        var unresolvedNodes = new HashSet<int>();
+
+        // ── Node loads ───────────────────────────────────────────────
+        List<NodeLoad> apiNodeLoads;
+        try
+        {
+            apiNodeLoads = await _api!.ListNodeLoadsAsync(ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                ModelAssembler.FormatApiError(ex, "querying node loads"), ex);
+        }
+
+        foreach (var nl in apiNodeLoads)
+        {
+            if (nl.Node == null || nl.LoadCase == null) continue;
+            if (!nodeIdToPoint.ContainsKey(nl.Node.Value))
+            {
+                unresolvedNodes.Add(nl.Node.Value);
+                continue;
+            }
+
+            GetOrCreateEntry(nl.Node.Value).NodeLoads.Add(new SgNodeLoadInfo(
+                nl.LoadCase.Value,
+                ResolveLoadCaseName(lcMap, nl.LoadCase.Value),
+                nl.LoadCategory ?? 0,
+                nl.Fx ?? 0, nl.Fy ?? 0, nl.Fz ?? 0,
+                nl.Mx ?? 0, nl.My ?? 0, nl.Mz ?? 0));
+        }
+
+        // ── Lumped mass loads ────────────────────────────────────────
+        List<LumpedMassLoad> apiLumpedMass;
+        try
+        {
+            apiLumpedMass = await _api!.ListLumpedMassLoadsAsync(ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                ModelAssembler.FormatApiError(ex, "querying lumped mass loads"), ex);
+        }
+
+        foreach (var lm in apiLumpedMass)
+        {
+            if (lm.Node == null || lm.LoadCase == null) continue;
+            if (!nodeIdToPoint.ContainsKey(lm.Node.Value))
+            {
+                unresolvedNodes.Add(lm.Node.Value);
+                continue;
+            }
+
+            GetOrCreateEntry(lm.Node.Value).LumpedMassLoads.Add(new SgLumpedMassLoadInfo(
+                lm.LoadCase.Value,
+                ResolveLoadCaseName(lcMap, lm.LoadCase.Value),
+                lm.LoadCategory ?? 0,
+                lm.Tmx ?? 0, lm.Tmy ?? 0, lm.Tmz ?? 0,
+                lm.Rmx ?? 0, lm.Rmy ?? 0, lm.Rmz ?? 0));
+        }
+
+        // ── Prescribed displacements ─────────────────────────────────
+        List<PrescribedDisplacement> apiPrescribed;
+        try
+        {
+            apiPrescribed = await _api!.ListPrescribedDisplacementsAsync(ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                ModelAssembler.FormatApiError(ex, "querying prescribed displacements"), ex);
+        }
+
+        foreach (var pd in apiPrescribed)
+        {
+            if (pd.Node == null || pd.LoadCase == null) continue;
+            if (!nodeIdToPoint.ContainsKey(pd.Node.Value))
+            {
+                unresolvedNodes.Add(pd.Node.Value);
+                continue;
+            }
+
+            GetOrCreateEntry(pd.Node.Value).PrescribedDisplacements.Add(new SgPrescribedDisplacementInfo(
+                pd.LoadCase.Value,
+                ResolveLoadCaseName(lcMap, pd.LoadCase.Value),
+                pd.LoadCategory ?? 0,
+                pd.Tx ?? 0, pd.Ty ?? 0, pd.Tz ?? 0,
+                pd.Rx ?? 0, pd.Ry ?? 0, pd.Rz ?? 0));
+        }
+
+        // ── Collect results ──────────────────────────────────────────
+        result.NodeEntries.AddRange(entries.Values);
+
+        foreach (var nodeId in unresolvedNodes)
+            result.Warnings.Add($"Node {nodeId} not found in model — loads skipped.");
+
+        if (result.NodeEntries.Count == 0)
+            result.Warnings.Add("No node loads found in the open job.");
+
+        return result;
+    }
+
+    /// <summary>
+    ///     Builds a reverse lookup dictionary (ID → Point) from the model's NodeMap.
+    /// </summary>
+    private static Dictionary<int, SgPoint3D> BuildNodeIdToPointMap(SgModelData model)
+    {
+        var map = new Dictionary<int, SgPoint3D>();
+        foreach (var kvp in model.NodeMap)
+            map[kvp.Value] = kvp.Key;
+        return map;
+    }
+
+    /// <summary>
+    ///     Queries all member-based loads (concentrated, distributed, distributed moments,
+    ///     prestress, and member thermal) from the open job, grouped by member.
+    /// </summary>
+    public async Task<SgMemberLoadsDataResult> GetMemberLoadsDataAsync(
+        SgModelData model, CancellationToken ct = default)
+    {
+        if (!IsConnected)
+            throw new InvalidOperationException("Not connected to SpaceGass");
+
+        var result = new SgMemberLoadsDataResult();
+        var lcMap = BuildLoadCaseIdToNameMap(model);
+        var entries = new SortedDictionary<int, SgMemberLoadEntry>();
+        var unresolvedMembers = new HashSet<int>();
+
+        SgMemberLoadEntry GetOrCreateEntry(int memberId)
+        {
+            if (entries.TryGetValue(memberId, out var existing))
+                return existing;
+            if (!model.MemberMap.TryGetValue(memberId, out var geom))
+                return null!;
+            var entry = new SgMemberLoadEntry(memberId, geom.Start, geom.End);
+            entries[memberId] = entry;
+            return entry;
+        }
+
+        bool MemberExists(int memberId)
+        {
+            if (model.MemberMap.ContainsKey(memberId)) return true;
+            unresolvedMembers.Add(memberId);
+            return false;
+        }
+
+        // ── Concentrated loads ───────────────────────────────────────
+        List<MemberConcentratedLoad> apiConc;
+        try
+        {
+            apiConc = await _api!.ListMemberConcentratedLoadsAsync(ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                ModelAssembler.FormatApiError(ex, "querying member concentrated loads"), ex);
+        }
+
+        foreach (var cl in apiConc)
+        {
+            if (cl.Member == null || cl.LoadCase == null) continue;
+            if (!MemberExists(cl.Member.Value)) continue;
+            GetOrCreateEntry(cl.Member.Value).ConcentratedLoads.Add(new SgConcentratedLoadInfo(
+                cl.LoadCase.Value, ResolveLoadCaseName(lcMap, cl.LoadCase.Value), cl.LoadCategory ?? 0,
+                cl.Fx ?? 0, cl.Fy ?? 0, cl.Fz ?? 0,
+                cl.Mx ?? 0, cl.My ?? 0, cl.Mz ?? 0,
+                cl.Position ?? 0, MapPositionUnits(cl.PositionUnits), MapLoadAxes(cl.Axes)));
+        }
+
+        // ── Distributed loads ────────────────────────────────────────
+        List<MemberDistributedLoad> apiDist;
+        try
+        {
+            apiDist = await _api!.ListMemberDistributedLoadsAsync(ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                ModelAssembler.FormatApiError(ex, "querying member distributed loads"), ex);
+        }
+
+        foreach (var dl in apiDist)
+        {
+            if (dl.Member == null || dl.LoadCase == null) continue;
+            if (!MemberExists(dl.Member.Value)) continue;
+            GetOrCreateEntry(dl.Member.Value).DistributedLoads.Add(new SgDistributedLoadInfo(
+                dl.LoadCase.Value, ResolveLoadCaseName(lcMap, dl.LoadCase.Value), dl.LoadCategory ?? 0,
+                dl.FxStart ?? 0, dl.FyStart ?? 0, dl.FzStart ?? 0,
+                dl.FxFinish ?? 0, dl.FyFinish ?? 0, dl.FzFinish ?? 0,
+                dl.StartPosition ?? 0, dl.FinishPosition ?? 0,
+                MapPositionUnits(dl.PositionUnits), MapLoadAxes(dl.Axes)));
+        }
+
+        // ── Distributed moments ──────────────────────────────────────
+        List<MemberDistributedMoment> apiMom;
+        try
+        {
+            apiMom = await _api!.ListMemberDistributedMomentsAsync(ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                ModelAssembler.FormatApiError(ex, "querying member distributed moments"), ex);
+        }
+
+        foreach (var dm in apiMom)
+        {
+            if (dm.Member == null || dm.LoadCase == null) continue;
+            if (!MemberExists(dm.Member.Value)) continue;
+            GetOrCreateEntry(dm.Member.Value).DistributedMoments.Add(new SgDistributedMomentInfo(
+                dm.LoadCase.Value, ResolveLoadCaseName(lcMap, dm.LoadCase.Value), dm.LoadCategory ?? 0,
+                dm.MxStart ?? 0, dm.MyStart ?? 0, dm.MzStart ?? 0,
+                dm.MxFinish ?? 0, dm.MyFinish ?? 0, dm.MzFinish ?? 0,
+                dm.StartPosition ?? 0, dm.FinishPosition ?? 0,
+                MapPositionUnits(dm.PositionUnits), MapLoadAxes(dm.Axes)));
+        }
+
+        // ── Prestress loads ──────────────────────────────────────────
+        List<MemberPrestressLoad> apiPre;
+        try
+        {
+            apiPre = await _api!.ListMemberPrestressLoadsAsync(ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                ModelAssembler.FormatApiError(ex, "querying member prestress loads"), ex);
+        }
+
+        foreach (var pl in apiPre)
+        {
+            if (pl.Member == null || pl.LoadCase == null) continue;
+            if (!MemberExists(pl.Member.Value)) continue;
+            GetOrCreateEntry(pl.Member.Value).PrestressLoads.Add(new SgPrestressLoadInfo(
+                pl.LoadCase.Value, ResolveLoadCaseName(lcMap, pl.LoadCase.Value), pl.LoadCategory ?? 0,
+                pl.Prestress ?? 0));
+        }
+
+        // ── Thermal loads (member only) ──────────────────────────────
+        List<ThermalLoad> apiTherm;
+        try
+        {
+            apiTherm = await _api!.ListThermalLoadsAsync(ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                ModelAssembler.FormatApiError(ex, "querying thermal loads"), ex);
+        }
+
+        foreach (var tl in apiTherm)
+        {
+            if (tl.ElementType != ThermalElementType.Member) continue;
+            if (tl.ElementId == null || tl.LoadCase == null) continue;
+            if (!MemberExists(tl.ElementId.Value)) continue;
+            GetOrCreateEntry(tl.ElementId.Value).ThermalLoads.Add(new SgMemberThermalLoadInfo(
+                tl.LoadCase.Value, ResolveLoadCaseName(lcMap, tl.LoadCase.Value), tl.LoadCategory ?? 0,
+                tl.ThermalLoadProp ?? 0, tl.YThermalGradient ?? 0, tl.ZThermalGradient ?? 0));
+        }
+
+        result.MemberEntries.AddRange(entries.Values);
+
+        foreach (var memberId in unresolvedMembers)
+            result.Warnings.Add($"Member {memberId} not found in model — loads skipped.");
+
+        if (result.MemberEntries.Count == 0)
+            result.Warnings.Add("No member loads found in the open job.");
+
+        return result;
+    }
+
+    private static string MapPositionUnits(LoadPositionUnits? units)
+    {
+        return units switch
+        {
+            LoadPositionUnits.Actual => "Actual",
+            LoadPositionUnits.Percent => "Percent",
+            _ => "Percent"
+        };
+    }
+
+    private static string MapLoadAxes(LoadAxes? axes)
+    {
+        return axes switch
+        {
+            LoadAxes.Local => "Local",
+            LoadAxes.GlobalInclined => "Global Inclined",
+            LoadAxes.GlobalProjected => "Global Projected",
+            _ => "Local"
+        };
+    }
+
+    /// <summary>
+    ///     Queries all plate-based loads (pressure and plate thermal) from the open job, grouped by plate.
+    /// </summary>
+    public async Task<SgPlateLoadsDataResult> GetPlateLoadsDataAsync(
+        SgModelData model, CancellationToken ct = default)
+    {
+        if (!IsConnected)
+            throw new InvalidOperationException("Not connected to SpaceGass");
+
+        var result = new SgPlateLoadsDataResult();
+        var lcMap = BuildLoadCaseIdToNameMap(model);
+        var entries = new SortedDictionary<int, SgPlateLoadEntry>();
+        var unresolvedPlates = new HashSet<int>();
+
+        SgPlateLoadEntry GetOrCreateEntry(int plateId)
+        {
+            if (entries.TryGetValue(plateId, out var existing))
+                return existing;
+            if (!model.PlateMap.TryGetValue(plateId, out var corners))
+                return null!;
+            var entry = new SgPlateLoadEntry(plateId, corners);
+            entries[plateId] = entry;
+            return entry;
+        }
+
+        bool PlateExists(int plateId)
+        {
+            if (model.PlateMap.ContainsKey(plateId)) return true;
+            unresolvedPlates.Add(plateId);
+            return false;
+        }
+
+        // ── Pressure loads ───────────────────────────────────────────
+        List<PlatePressureLoad> apiPressure;
+        try
+        {
+            apiPressure = await _api!.ListPlatePressureLoadsAsync(ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                ModelAssembler.FormatApiError(ex, "querying plate pressure loads"), ex);
+        }
+
+        foreach (var pp in apiPressure)
+        {
+            if (pp.Plate == null || pp.LoadCase == null) continue;
+            if (!PlateExists(pp.Plate.Value)) continue;
+            GetOrCreateEntry(pp.Plate.Value).PressureLoads.Add(new SgPlatePressureLoadInfo(
+                pp.LoadCase.Value, ResolveLoadCaseName(lcMap, pp.LoadCase.Value), pp.LoadCategory ?? 0,
+                pp.Px ?? 0, pp.Py ?? 0, pp.Pz ?? 0, MapLoadAxes(pp.Axes)));
+        }
+
+        // ── Thermal loads (plate only) ───────────────────────────────
+        List<ThermalLoad> apiTherm;
+        try
+        {
+            apiTherm = await _api!.ListThermalLoadsAsync(ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                ModelAssembler.FormatApiError(ex, "querying thermal loads"), ex);
+        }
+
+        foreach (var tl in apiTherm)
+        {
+            if (tl.ElementType != ThermalElementType.Plate) continue;
+            if (tl.ElementId == null || tl.LoadCase == null) continue;
+            if (!PlateExists(tl.ElementId.Value)) continue;
+            GetOrCreateEntry(tl.ElementId.Value).ThermalLoads.Add(new SgPlateThermalLoadInfo(
+                tl.LoadCase.Value, ResolveLoadCaseName(lcMap, tl.LoadCase.Value), tl.LoadCategory ?? 0,
+                tl.ThermalLoadProp ?? 0, tl.YThermalGradient ?? 0, tl.ZThermalGradient ?? 0));
+        }
+
+        result.PlateEntries.AddRange(entries.Values);
+
+        foreach (var plateId in unresolvedPlates)
+            result.Warnings.Add($"Plate {plateId} not found in model — loads skipped.");
+
+        if (result.PlateEntries.Count == 0)
+            result.Warnings.Add("No plate loads found in the open job.");
+
+        return result;
+    }
+
+    /// <summary>
     ///     Runs an analysis on the current job. Dispatches to the appropriate API endpoint
     ///     based on analysis type. Returns a domain result with success/failure,
     ///     elapsed time, run ID, and any warnings.

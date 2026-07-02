@@ -10,7 +10,7 @@ using Grasshopper.Kernel;
 
 namespace GhSpaceGass.Components.Properties;
 
-public class GetSectionPropertiesComponent : GH_AsyncComponent<GetSectionPropertiesComponent>
+public class GetSectionsComponent : GH_AsyncComponent<GetSectionsComponent>
 {
     private int _inModel;
     private int _outIds, _outNames, _outLibraries, _outSources;
@@ -19,15 +19,15 @@ public class GetSectionPropertiesComponent : GH_AsyncComponent<GetSectionPropert
     private int _outAreaFactor, _outIyFactor, _outIzFactor, _outTorsionFactor;
     private int _outTransposed, _outAngleType, _outStatus;
 
-    public GetSectionPropertiesComponent()
-        : base("SG Section Properties", "sgSectionProps",
+    public GetSectionsComponent()
+        : base("SG Get Sections", "sgGetSections",
             "Query all section properties from the open SpaceGass job.",
             "SpaceGass", "2 | Properties")
     {
         BaseWorker = new GetSectionPropertiesWorker(this);
     }
 
-    public override GH_Exposure Exposure => GH_Exposure.tertiary;
+    public override GH_Exposure Exposure => GH_Exposure.last;
     protected override Bitmap Icon => Icons.IconFactory.GetSectionProperties();
     public override Guid ComponentGuid => new("EFB84A07-DF40-4AB5-A060-69002A76B668");
 
@@ -42,43 +42,62 @@ public class GetSectionPropertiesComponent : GH_AsyncComponent<GetSectionPropert
     protected override void RegisterOutputParams(GH_OutputParamManager pManager)
     {
         _outIds = pManager.AddIntegerParameter("IDs", "Id",
-            "SpaceGass section IDs.", GH_ParamAccess.list);
+            "SpaceGass section IDs.",
+            GH_ParamAccess.list);
         _outNames = pManager.AddTextParameter("Names", "N",
-            "Section names.", GH_ParamAccess.list);
-        _outLibraries = pManager.AddTextParameter("Libraries", "Lib",
-            "Library names (empty string for custom sections).", GH_ParamAccess.list);
-        _outSources = pManager.AddTextParameter("Sources", "Src",
-            "Property source: \"Library\" or \"User\".", GH_ParamAccess.list);
-        _outArea = pManager.AddNumberParameter("Area", "A",
-            "Cross-section area.", GH_ParamAccess.list);
-        _outIy = pManager.AddNumberParameter("Iy", "Iy",
-            "Second moment of area about Y.", GH_ParamAccess.list);
-        _outIz = pManager.AddNumberParameter("Iz", "Iz",
-            "Second moment of area about Z.", GH_ParamAccess.list);
-        _outJ = pManager.AddNumberParameter("J", "J",
-            "Torsion constant.", GH_ParamAccess.list);
-        _outAy = pManager.AddNumberParameter("Ay", "Ay",
-            "Shear area Y.", GH_ParamAccess.list);
-        _outAz = pManager.AddNumberParameter("Az", "Az",
-            "Shear area Z.", GH_ParamAccess.list);
-        _outPrincipalAngle = pManager.AddNumberParameter("Principal Angle", "PA",
-            "Principal axis angle (degrees).", GH_ParamAccess.list);
+            "Section names.",
+            GH_ParamAccess.list);
         _outMark = pManager.AddTextParameter("Mark", "Mk",
-            "Mark/label (empty string if none).", GH_ParamAccess.list);
+            "Mark/label (empty string if none).",
+            GH_ParamAccess.list);
+        _outSources = pManager.AddTextParameter("Sources", "Src",
+            "Property source: \"Library\" or \"User\".",
+            GH_ParamAccess.list);
+        _outLibraries = pManager.AddTextParameter("Libraries", "Lib",
+            "Library names (empty string for custom sections).",
+            GH_ParamAccess.list);
+        _outArea = pManager.AddNumberParameter("Area", "A",
+            "Cross-section area.",
+            GH_ParamAccess.list);
+        _outIy = pManager.AddNumberParameter("Iy", "Iy",
+            "Second moment of area about Y.",
+            GH_ParamAccess.list);
+        _outIz = pManager.AddNumberParameter("Iz", "Iz",
+            "Second moment of area about Z.",
+            GH_ParamAccess.list);
+        _outJ = pManager.AddNumberParameter("J", "J",
+            "Torsion constant.",
+            GH_ParamAccess.list);
+        _outAy = pManager.AddNumberParameter("Ay", "Ay",
+            "Shear area Y.",
+            GH_ParamAccess.list);
+        _outAz = pManager.AddNumberParameter("Az", "Az",
+            "Shear area Z.",
+            GH_ParamAccess.list);
+        _outPrincipalAngle = pManager.AddNumberParameter("Principal Angle", "PA",
+            "Principal axis angle (degrees).",
+            GH_ParamAccess.list);
         _outAreaFactor = pManager.AddNumberParameter("Area Factor", "AF",
-            "Area modification factor.", GH_ParamAccess.list);
+            "Area modification factor.",
+            GH_ParamAccess.list);
         _outIyFactor = pManager.AddNumberParameter("Iy Factor", "IyF",
-            "Iy modification factor.", GH_ParamAccess.list);
+            "Iy modification factor.",
+            GH_ParamAccess.list);
         _outIzFactor = pManager.AddNumberParameter("Iz Factor", "IzF",
-            "Iz modification factor.", GH_ParamAccess.list);
+            "Iz modification factor.",
+            GH_ParamAccess.list);
         _outTorsionFactor = pManager.AddNumberParameter("Torsion Factor", "TF",
-            "Torsion constant modification factor.", GH_ParamAccess.list);
+            "Torsion constant modification factor.",
+            GH_ParamAccess.list);
         _outTransposed = pManager.AddBooleanParameter("Transposed", "Tr",
-            "Whether the section is transposed.", GH_ParamAccess.list);
+            "Whether the section is transposed.",
+            GH_ParamAccess.list);
         _outAngleType = pManager.AddTextParameter("Angle Type", "AT",
-            "Angle section type (Not Applicable, Single, Short-Short, Long-Long, Starred).", GH_ParamAccess.list);
+            "Angle section type (Not Applicable, Single, Short-Short, Long-Long, Starred).",
+            GH_ParamAccess.list);
         _outStatus = pManager.AddTextParameter("Status", "S",
-            "Query status and warnings.", GH_ParamAccess.item);
+            "Query status and warnings.",
+            GH_ParamAccess.item);
     }
 
     public override void AppendAdditionalMenuItems(ToolStripDropDown menu)
@@ -89,10 +108,10 @@ public class GetSectionPropertiesComponent : GH_AsyncComponent<GetSectionPropert
 
     // ── Worker ────────────────────────────────────────────────────
 
-    private sealed class GetSectionPropertiesWorker : WorkerInstance<GetSectionPropertiesComponent>
+    private sealed class GetSectionPropertiesWorker : WorkerInstance<GetSectionsComponent>
     {
         public GetSectionPropertiesWorker(
-            GetSectionPropertiesComponent parent,
+            GetSectionsComponent parent,
             string id = "baseWorker",
             CancellationToken cancellationToken = default)
             : base(parent, id, cancellationToken) { }
@@ -101,7 +120,7 @@ public class GetSectionPropertiesComponent : GH_AsyncComponent<GetSectionPropert
         private SgSectionPropertiesResult Result { get; set; }
         private string Status { get; set; } = string.Empty;
 
-        public override WorkerInstance<GetSectionPropertiesComponent> Duplicate(
+        public override WorkerInstance<GetSectionsComponent> Duplicate(
             string id, CancellationToken cancellationToken)
             => new GetSectionPropertiesWorker(Parent, id, cancellationToken);
 

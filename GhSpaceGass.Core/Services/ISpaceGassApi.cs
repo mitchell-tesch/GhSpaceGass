@@ -165,6 +165,16 @@ internal interface ISpaceGassApi : IDisposable
     Task<List<LoadCase>> ListLoadCasesAsync(CancellationToken ct = default);
     Task<List<LoadCategory>> ListLoadCategoriesAsync(CancellationToken ct = default);
     Task<List<LoadCaseGroup>> ListLoadCaseGroupsAsync(CancellationToken ct = default);
+    Task<List<SelfWeightLoad>> ListSelfWeightLoadsAsync(CancellationToken ct = default);
+    Task<List<NodeLoad>> ListNodeLoadsAsync(CancellationToken ct = default);
+    Task<List<LumpedMassLoad>> ListLumpedMassLoadsAsync(CancellationToken ct = default);
+    Task<List<PrescribedDisplacement>> ListPrescribedDisplacementsAsync(CancellationToken ct = default);
+    Task<List<MemberConcentratedLoad>> ListMemberConcentratedLoadsAsync(CancellationToken ct = default);
+    Task<List<MemberDistributedLoad>> ListMemberDistributedLoadsAsync(CancellationToken ct = default);
+    Task<List<MemberDistributedMoment>> ListMemberDistributedMomentsAsync(CancellationToken ct = default);
+    Task<List<MemberPrestressLoad>> ListMemberPrestressLoadsAsync(CancellationToken ct = default);
+    Task<List<ThermalLoad>> ListThermalLoadsAsync(CancellationToken ct = default);
+    Task<List<PlatePressureLoad>> ListPlatePressureLoadsAsync(CancellationToken ct = default);
 }
 
 /// <summary>
