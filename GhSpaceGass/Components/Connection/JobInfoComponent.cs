@@ -6,6 +6,7 @@ using System.Windows.Forms;
 using GhSpaceGass.Async;
 using GhSpaceGass.Core.Models;
 using Grasshopper.Kernel;
+using GhSpaceGass.Core.Services;
 
 namespace GhSpaceGass.Components.Connection;
 
@@ -167,8 +168,10 @@ public class JobInfoComponent : GH_AsyncComponent<JobInfoComponent>
             }
             catch (Exception ex)
             {
-                Status = $"Error: {ex.Message}";
+                var message = ModelAssembler.FormatApiError(ex, "querying job info");
+                Status = $"Error: {message}";
                 Parent.Message = "Error";
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, message);
                 if (!CancellationToken.IsCancellationRequested) done();
             }
         }

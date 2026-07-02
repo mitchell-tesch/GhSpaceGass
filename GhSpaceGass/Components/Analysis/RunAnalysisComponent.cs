@@ -8,6 +8,7 @@ using GhSpaceGass.Core.Models;
 using GhSpaceGass.Helpers;
 using GhSpaceGass.Types;
 using Grasshopper.Kernel;
+using GhSpaceGass.Core.Services;
 
 namespace GhSpaceGass.Components.Analysis;
 
@@ -162,9 +163,10 @@ public class RunAnalysisComponent : GH_AsyncComponent<RunAnalysisComponent>
             {
                 OutputModel = InputModel;
                 Success = false;
-                Status = ex.Message;
+                var message = ModelAssembler.FormatApiError(ex, "running analysis");
+                Status = $"Error: {message}";
                 Parent.Message = "Error";
-                Parent.AddRuntimeMessage(GH_RuntimeMessageLevel.Error, ex.Message);
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, message);
                 if (!CancellationToken.IsCancellationRequested) done();
             }
         }
@@ -201,13 +203,13 @@ public class RunAnalysisComponent : GH_AsyncComponent<RunAnalysisComponent>
                     ? $"Analysis failed: {result.ErrorMessage}"
                     : "Analysis did not complete successfully.";
                 Parent.Message = "Failed";
-                Parent.AddRuntimeMessage(GH_RuntimeMessageLevel.Error, Status);
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, Status);
             }
 
             foreach (var warning in result.Warnings)
             {
                 Status += $"\nWarning: {warning}";
-                Parent.AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, warning);
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, warning);
             }
         }
 

@@ -236,12 +236,12 @@ public class SpaceGassSession : IDisposable
     /// <summary>
     ///     Opens an existing job file in SpaceGass.
     /// </summary>
-    public async Task<JobStatus> OpenJobAsync(string filePath, CancellationToken ct = default)
+    public async Task<JobStatus> OpenJobAsync(string filePath, JobForceAccessOption? forceOption = null, CancellationToken ct = default)
     {
         if (!IsConnected)
             throw new InvalidOperationException("Not connected to SpaceGass");
 
-        return await _api!.OpenJobAsync(filePath, ct).ConfigureAwait(false);
+        return await _api!.OpenJobAsync(filePath, forceOption, ct).ConfigureAwait(false);
     }
 
     /// <summary>

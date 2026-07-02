@@ -262,7 +262,7 @@ public class SpaceGassSessionTests
         {
             State = new JobState { IsOpen = true, IsNew = false }
         };
-        _api.OpenJobAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+        _api.OpenJobAsync(Arg.Any<string>(), Arg.Any<JobForceAccessOption?>(), Arg.Any<CancellationToken>())
             .Returns(expectedStatus);
 
         var session = CreateSession();
@@ -272,7 +272,7 @@ public class SpaceGassSessionTests
 
         Assert.NotNull(result);
         Assert.True(result.State?.IsOpen);
-        await _api.Received(1).OpenJobAsync(@"C:\Models\Test.sg", Arg.Any<CancellationToken>());
+        await _api.Received(1).OpenJobAsync(@"C:\Models\Test.sg", Arg.Any<JobForceAccessOption?>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

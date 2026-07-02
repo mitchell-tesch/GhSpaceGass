@@ -6,6 +6,7 @@ using System.Windows.Forms;
 using GhSpaceGass.Async;
 using GhSpaceGass.Core.Models;
 using Grasshopper.Kernel;
+using GhSpaceGass.Core.Services;
 
 namespace GhSpaceGass.Components.Connection;
 
@@ -128,8 +129,10 @@ public class SaveJobComponent : GH_AsyncComponent<SaveJobComponent>
             catch (Exception ex)
             {
                 Saved = false;
-                Status = $"Error: {ex.Message}";
+                var message = ModelAssembler.FormatApiError(ex, "saving job");
+                Status = $"Error: {message}";
                 Parent.Message = "Error";
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, message);
                 if (!CancellationToken.IsCancellationRequested) done();
             }
         }

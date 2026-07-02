@@ -9,6 +9,7 @@ using GhSpaceGass.Types;
 using Grasshopper.Kernel;
 using Grasshopper.Kernel.Data;
 using Grasshopper.Kernel.Types;
+using GhSpaceGass.Core.Services;
 
 namespace GhSpaceGass.Components.Cases;
 
@@ -147,7 +148,7 @@ public class GetLoadCasesComponent : GH_AsyncComponent<GetLoadCasesComponent>
                 foreach (var w in Result.Warnings)
                 {
                     Status += $"\nWarning: {w}";
-                    Parent.AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, w);
+                    AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, w);
                 }
 
                 Parent.Message = $"{Result.LoadCases.Count} load cases";
@@ -156,8 +157,10 @@ public class GetLoadCasesComponent : GH_AsyncComponent<GetLoadCasesComponent>
             catch (OperationCanceledException) when (CancellationToken.IsCancellationRequested) { }
             catch (Exception ex)
             {
-                Status = ex.Message;
+                var message = ModelAssembler.FormatApiError(ex, "querying load cases");
+                Status = $"Error: {message}";
                 Parent.Message = "Error";
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, message);
                 if (!CancellationToken.IsCancellationRequested) done();
             }
         }

@@ -158,6 +158,13 @@ public static class ValueListHelper
         new("Rebuild", "0"), new("Append", "1")
     };
 
+    // ── Connection options ──────────────────────────────────────────
+
+    public static readonly Option[] ForceAccessOptions =
+    {
+        new("None", "0"), new("Open Previous Saved", "1"), new("Open Unsaved Most Recent", "2")
+    };
+
     // ── Methods ─────────────────────────────────────────────────────
 
 

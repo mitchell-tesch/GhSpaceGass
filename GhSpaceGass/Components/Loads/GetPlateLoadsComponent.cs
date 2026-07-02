@@ -10,6 +10,7 @@ using Grasshopper.Kernel;
 using Grasshopper.Kernel.Data;
 using Grasshopper.Kernel.Types;
 using Rhino.Geometry;
+using GhSpaceGass.Core.Services;
 
 namespace GhSpaceGass.Components.Loads;
 
@@ -141,12 +142,19 @@ public class GetPlateLoadsComponent : GH_AsyncComponent<GetPlateLoadsComponent>
                 int pp = 0, tl = 0;
                 foreach (var e in Result.PlateEntries) { pp += e.PressureLoads.Count; tl += e.ThermalLoads.Count; }
                 Status = $"{Result.PlateEntries.Count} plates: {pp} pressure, {tl} thermal.";
-                foreach (var w in Result.Warnings) { Status += $"\nWarning: {w}"; Parent.AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, w); }
+                foreach (var w in Result.Warnings) { Status += $"\nWarning: {w}"; AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, w); }
                 Parent.Message = $"{Result.PlateEntries.Count} plates";
                 if (!CancellationToken.IsCancellationRequested) done();
             }
             catch (OperationCanceledException) when (CancellationToken.IsCancellationRequested) { }
-            catch (Exception ex) { Status = ex.Message; Parent.Message = "Error"; if (!CancellationToken.IsCancellationRequested) done(); }
+            catch (Exception ex)
+            {
+                var message = ModelAssembler.FormatApiError(ex, "querying plate loads");
+                Status = $"Error: {message}";
+                Parent.Message = "Error";
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, message);
+                if (!CancellationToken.IsCancellationRequested) done();
+            }
         }
 
         public override void SetData(IGH_DataAccess da)

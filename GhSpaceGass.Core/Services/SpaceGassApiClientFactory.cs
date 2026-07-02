@@ -31,11 +31,12 @@ internal class SpaceGassApiWrapper : ISpaceGassApi
         return (await _client.Job.New.PostAsync(cancellationToken: ct).ConfigureAwait(false))!;
     }
 
-    public async Task<JobStatus> OpenJobAsync(string filePath, CancellationToken ct = default)
+    public async Task<JobStatus> OpenJobAsync(string filePath, JobForceAccessOption? forceOption = null, CancellationToken ct = default)
     {
-        return (await _client.Job.Open.PostAsync(
-            new OpenJobRequest { FilePath = filePath },
-            cancellationToken: ct).ConfigureAwait(false))!;
+        var request = new OpenJobRequest { FilePath = filePath };
+        if (forceOption != null && forceOption != JobForceAccessOption.None)
+            request.ForceOption = forceOption;
+        return (await _client.Job.Open.PostAsync(request, cancellationToken: ct).ConfigureAwait(false))!;
     }
 
     public async Task SaveJobAsync(string filePath, CancellationToken ct = default)

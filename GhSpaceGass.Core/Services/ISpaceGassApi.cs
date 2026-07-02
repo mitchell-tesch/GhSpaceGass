@@ -12,7 +12,7 @@ internal interface ISpaceGassApi : IDisposable
 
     // ── Job lifecycle ─────────────────────────────────────────────
     Task<JobStatus> NewJobAsync(CancellationToken ct = default);
-    Task<JobStatus> OpenJobAsync(string filePath, CancellationToken ct = default);
+    Task<JobStatus> OpenJobAsync(string filePath, JobForceAccessOption? forceOption = null, CancellationToken ct = default);
     Task SaveJobAsync(string filePath, CancellationToken ct = default);
     Task<JobStatus> GetJobStatusAsync(CancellationToken ct = default);
     Task CloseJobAsync(CancellationToken ct = default);
