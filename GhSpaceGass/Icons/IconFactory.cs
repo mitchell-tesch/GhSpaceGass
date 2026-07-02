@@ -10,9 +10,10 @@ namespace GhSpaceGass.Icons;
 public static class IconFactory
 {
     // ── Panel Colours ──────────────────────────────────────────────
-    public static readonly Color Connection = ColorTranslator.FromHtml("#607D8B");
-    public static readonly Color Properties = ColorTranslator.FromHtml("#009688");
+    public static readonly Color Connection = ColorTranslator.FromHtml("#009688");
+    public static readonly Color Properties = ColorTranslator.FromHtml("#607D8B");
     public static readonly Color Structure = ColorTranslator.FromHtml("#1976D2");
+    public static readonly Color Cases = ColorTranslator.FromHtml("#795548");
     public static readonly Color Loads = ColorTranslator.FromHtml("#FF9800");
     public static readonly Color Model = ColorTranslator.FromHtml("#4CAF50");
     public static readonly Color Analysis = ColorTranslator.FromHtml("#E53935");
@@ -43,21 +44,18 @@ public static class IconFactory
     /// <summary>Tab icon — stylised "SG" monogram.</summary>
     public static Bitmap TabIcon()
     {
+        using var stream = typeof(IconFactory).Assembly
+            .GetManifestResourceStream("GhSpaceGass.Icons.icon.png");
+        if (stream != null)
+            return new Bitmap(Image.FromStream(stream), 24, 24);
+
+        // Fallback if resource not found
         var bmp = Create();
         using var g = Setup(bmp);
         using var pen = P(Structure, 2f);
-        using var brush = B(Structure);
-        // Draw a simple structural frame: two columns + beam
-        g.DrawLine(pen, 4, 20, 4, 6);   // left column
-        g.DrawLine(pen, 20, 20, 20, 6); // right column
-        g.DrawLine(pen, 4, 6, 20, 6);   // beam
-        // Node dots
-        using var nodeBrush = B(Connection);
-        g.FillEllipse(nodeBrush, 2, 4, 4, 4);
-        g.FillEllipse(nodeBrush, 18, 4, 4, 4);
-        // Ground hatching
-        g.DrawLine(P(Connection, 1f), 2, 21, 6, 21);
-        g.DrawLine(P(Connection, 1f), 18, 21, 22, 21);
+        g.DrawLine(pen, 4, 20, 4, 6);
+        g.DrawLine(pen, 20, 20, 20, 6);
+        g.DrawLine(pen, 4, 6, 20, 6);
         return bmp;
     }
 
@@ -126,7 +124,7 @@ public static class IconFactory
         using var brush = B(Properties);
         // I-beam shape (top flange, web, bottom flange)
         g.FillRectangle(brush, 4, 3, 16, 3);   // top flange
-        g.FillRectangle(brush, 9, 6, 6, 12);   // web
+        g.FillRectangle(brush, 9, 6, 3, 12);   // web
         g.FillRectangle(brush, 4, 18, 16, 3);  // bottom flange
         return bmp;
     }
@@ -160,7 +158,7 @@ public static class IconFactory
         using var pen = P(Properties, 1.5f);
         // I-beam shape (smaller, offset left)
         g.FillRectangle(brush, 2, 4, 12, 2);   // top flange
-        g.FillRectangle(brush, 6, 6, 4, 8);    // web
+        g.FillRectangle(brush, 6, 6, 2, 8);    // web
         g.FillRectangle(brush, 2, 14, 12, 2);  // bottom flange
         // List lines (right side, indicating "query/list")
         g.DrawLine(pen, 16, 6, 22, 6);
@@ -299,7 +297,7 @@ public static class IconFactory
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // CASES / LOADS PANEL
+    // CASES PANEL
     // ═══════════════════════════════════════════════════════════════
 
     /// <summary>Load case: folder with "LC" label.</summary>
@@ -307,13 +305,13 @@ public static class IconFactory
     {
         var bmp = Create();
         using var g = Setup(bmp);
-        using var pen = P(Loads, 1.5f);
-        using var brush = B(Loads);
+        using var pen = P(Cases, 1.5f);
+        using var brush = B(Cases);
         // Folder tab
         g.FillRectangle(brush, 3, 5, 6, 3);
         // Folder body
         g.DrawRectangle(pen, 3, 7, 18, 13);
-        g.FillRectangle(B(Color.FromArgb(60, Loads.R, Loads.G, Loads.B)), 4, 8, 17, 12);
+        g.FillRectangle(B(Color.FromArgb(60, Cases.R, Cases.G, Cases.B)), 4, 8, 17, 12);
         // "LC" text
         // using var font = new Font("Arial", 7f, FontStyle.Bold);
         // g.DrawString("LC", font, brush, 5, 10);
@@ -325,15 +323,15 @@ public static class IconFactory
     {
         var bmp = Create();
         using var g = Setup(bmp);
-        using var pen = P(Loads, 1.5f);
-        using var brush = B(Loads);
+        using var pen = P(Cases, 1.5f);
+        using var brush = B(Cases);
         // Tag shape
         var tag = new PointF[]
         {
             new(6, 4), new(20, 4), new(20, 20), new(6, 20), new(2, 12)
         };
         g.DrawPolygon(pen, tag);
-        g.FillPolygon(B(Color.FromArgb(60, Loads.R, Loads.G, Loads.B)), tag);
+        g.FillPolygon(B(Color.FromArgb(60, Cases.R, Cases.G, Cases.B)), tag);
         // Hole in tag
         g.FillEllipse(B(Color.White), 4, 10, 4, 4);
         g.DrawEllipse(pen, 4, 10, 4, 4);
@@ -345,7 +343,7 @@ public static class IconFactory
     {
         var bmp = Create();
         using var g = Setup(bmp);
-        using var pen = P(Loads, 2.5f);
+        using var pen = P(Cases, 2.5f);
         // Sigma (Σ) drawn as lines
         g.DrawLine(pen, 18, 3, 6, 3);   // top bar
         g.DrawLine(pen, 6, 3, 12, 12);  // upper diagonal
@@ -354,6 +352,29 @@ public static class IconFactory
         return bmp;
     }
 
+    /// <summary>Load case folder with list lines (query variant).</summary>
+    public static Bitmap GetLoadCases()
+    {
+        var bmp = Create();
+        using var g = Setup(bmp);
+        using var pen = P(Cases, 1.5f);
+        using var brush = B(Cases);
+        // Smaller folder tab (offset left)
+        g.FillRectangle(brush, 1, 5, 5, 3);
+        // Smaller folder body
+        g.DrawRectangle(pen, 1, 7, 13, 13);
+        g.FillRectangle(B(Color.FromArgb(60, Cases.R, Cases.G, Cases.B)), 2, 8, 12, 12);
+        // List lines (right side)
+        g.DrawLine(pen, 17, 9, 23, 9);
+        g.DrawLine(pen, 17, 13, 23, 13);
+        g.DrawLine(pen, 17, 17, 23, 17);
+        return bmp;
+    }
+    
+    // ═══════════════════════════════════════════════════════════════
+    // LOADS PANEL
+    // ═══════════════════════════════════════════════════════════════
+    
     /// <summary>Node load: downward arrow at a point.</summary>
     public static Bitmap NodeLoad()
     {
@@ -393,8 +414,7 @@ public static class IconFactory
         }
         return bmp;
     }
-
-    /// <summary>Self-weight: gravity "g" with downward arrow.</summary>
+    
     /// <summary>Self-weight: apple (Newton's gravity).</summary>
     public static Bitmap SelfWeight()
     {
@@ -409,25 +429,6 @@ public static class IconFactory
         // Apple body (ellipse)
         g.FillEllipse(brush, 5, 6, 14, 15);
         g.DrawEllipse(pen, 5, 6, 14, 15);
-        return bmp;
-    }
-
-    /// <summary>Load case folder with list lines (query variant).</summary>
-    public static Bitmap GetLoadCases()
-    {
-        var bmp = Create();
-        using var g = Setup(bmp);
-        using var pen = P(Loads, 1.5f);
-        using var brush = B(Loads);
-        // Smaller folder tab (offset left)
-        g.FillRectangle(brush, 1, 5, 5, 3);
-        // Smaller folder body
-        g.DrawRectangle(pen, 1, 7, 13, 13);
-        g.FillRectangle(B(Color.FromArgb(60, Loads.R, Loads.G, Loads.B)), 2, 8, 12, 12);
-        // List lines (right side)
-        g.DrawLine(pen, 17, 9, 23, 9);
-        g.DrawLine(pen, 17, 13, 23, 13);
-        g.DrawLine(pen, 17, 17, 23, 17);
         return bmp;
     }
 
@@ -555,27 +556,28 @@ public static class IconFactory
         return bmp;
     }
 
-    /// <summary>Hero: Disassemble / exploded network of nodes with outward arrows.</summary>
+    /// <summary>Hero: Disassemble / exploded version of the assembly network — same 5 nodes pushed outward.</summary>
     public static Bitmap DisassembleModel()
     {
         var bmp = Create();
         using var g = Setup(bmp);
-        using var pen = P(Model, 1.5f);
         using var dashPen = P(Model, 1f);
-        dashPen.DashStyle = System.Drawing.Drawing2D.DashStyle.Dash;
+        dashPen.DashStyle = DashStyle.Dash;
         using var brush = B(Model);
-        // Dashed edges (exploded/disassembled)
+        // Same network edges as AssembleModel but dashed (ghost of original)
         g.DrawLine(dashPen, 4, 18, 12, 4);
         g.DrawLine(dashPen, 12, 4, 20, 18);
         g.DrawLine(dashPen, 4, 18, 20, 18);
-        // Nodes
-        g.FillEllipse(brush, 10, 2, 4, 4);   // top
-        g.FillEllipse(brush, 2, 16, 4, 4);   // bottom-left
-        g.FillEllipse(brush, 18, 16, 4, 4);  // bottom-right
-        // Outward arrows
-        g.DrawLine(pen, 12, 4, 12, 1);
-        g.DrawLine(pen, 4, 18, 1, 21);
-        g.DrawLine(pen, 20, 18, 23, 21);
+        g.DrawLine(dashPen, 12, 4, 4, 10);
+        g.DrawLine(dashPen, 12, 4, 20, 10);
+        g.DrawLine(dashPen, 4, 10, 4, 18);
+        g.DrawLine(dashPen, 20, 10, 20, 18);
+        // Same 5 nodes but pushed outward from centre (12, 12)
+        g.FillEllipse(brush, 10, 0, 4, 4);   // top — pushed up
+        g.FillEllipse(brush, 0, 6, 4, 4);    // left-mid — pushed left
+        g.FillEllipse(brush, 20, 6, 4, 4);   // right-mid — pushed right
+        g.FillEllipse(brush, 0, 18, 4, 4);   // bottom-left — pushed out
+        g.FillEllipse(brush, 20, 18, 4, 4);  // bottom-right — pushed out
         return bmp;
     }
 
@@ -830,18 +832,21 @@ public static class IconFactory
         return bmp;
     }
 
-    /// <summary>Lumped mass: heavy dot with mass "m" label at a node.</summary>
+    /// <summary>Lumped mass: kettlebell/weight shape at a node.</summary>
     public static Bitmap LumpedMassLoad()
     {
         var bmp = Create();
         using var g = Setup(bmp);
+        using var pen = P(Loads, 1.5f);
         using var brush = B(Loads);
-        // Large mass dot
-        g.FillEllipse(brush, 5, 5, 14, 14);
-        // "m" label
-        using var font = new Font("Arial", 8f, FontStyle.Bold);
-        using var textBrush = B(Color.White);
-        g.DrawString("m", font, textBrush, 6, 5);
+        // Handle (arc at top)
+        g.DrawArc(pen, 7, 1, 10, 10, 180, 180);
+        // Neck (narrow section)
+        g.FillRectangle(brush, 9, 8, 6, 4);
+        // Weight body (trapezoid)
+        var body = new PointF[] { new(5, 12), new(19, 12), new(21, 22), new(3, 22) };
+        g.FillPolygon(brush, body);
+        g.DrawPolygon(pen, body);
         return bmp;
     }
 
@@ -1006,5 +1011,3 @@ public static class IconFactory
         return bmp;
     }
 }
-
-
