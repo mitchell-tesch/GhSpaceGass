@@ -36,6 +36,7 @@ public class GetBucklingResultsComponent : GH_AsyncComponent<GetBucklingResultsC
     private int _outRotnAxis;
     private int _outTransAxis;
     private int _outWarnings;
+    private int _outStatus;
 
     public GetBucklingResultsComponent()
         : base("SG Buckling Results", "sgBuckling",
@@ -76,31 +77,31 @@ public class GetBucklingResultsComponent : GH_AsyncComponent<GetBucklingResultsC
         _outLoadCases = pManager.AddTextParameter("Load Cases", "LC",
             "Load case names, one per branch matching the results tree.",
             GH_ParamAccess.tree);
-        _outModes = pManager.AddIntegerParameter("Modes", "Mo",
+        _outModes = pManager.AddIntegerParameter("Modes", "M",
             "Mode numbers, one per branch matching the results tree.",
             GH_ParamAccess.tree);
         _outLoadFactors = pManager.AddNumberParameter("Load Factors", "LF",
             "Buckling load factor, branched by {load_case; mode}.",
             GH_ParamAccess.tree);
-        _outNodeAtMaxTrans = pManager.AddPointParameter("Node At Max Translation", "NT",
+        _outNodeAtMaxTrans = pManager.AddPointParameter("Node Point At Max Translation", "NT",
             "Point location of node at maximum translation, branched by {load_case; mode}.",
             GH_ParamAccess.tree);
         _outTransAxis = pManager.AddTextParameter("Translation Axis", "TA",
             "Axis of maximum translation, branched by {load_case; mode}.",
             GH_ParamAccess.tree);
-        _outNodeAtMaxRotn = pManager.AddPointParameter("Node At Max Rotation", "NR",
+        _outNodeAtMaxRotn = pManager.AddPointParameter("Node Point At Max Rotation", "NR",
             "Point location of node at maximum rotation, branched by {load_case; mode}.",
             GH_ParamAccess.tree);
         _outRotnAxis = pManager.AddTextParameter("Rotation Axis", "RA",
             "Axis of maximum rotation, branched by {load_case; mode}.",
             GH_ParamAccess.tree);
-        _outMembers = pManager.AddIntegerParameter("Members", "Mb",
+        _outMembers = pManager.AddIntegerParameter("Member IDs", "MIds",
             "Member IDs, branched by {load_case; mode}.",
             GH_ParamAccess.tree);
-        _outLines = pManager.AddLineParameter("Lines", "L",
+        _outLines = pManager.AddLineParameter("Member Lines", "ML",
             "Member geometry, branched by {load_case; mode}.",
             GH_ParamAccess.tree);
-        _outLength = pManager.AddNumberParameter("Length", "Len",
+        _outLength = pManager.AddNumberParameter("Length", "MLen",
             "Member length, branched by {load_case; mode}.",
             GH_ParamAccess.tree);
         _outPcr = pManager.AddNumberParameter("Pcr", "Pcr",
@@ -115,6 +116,8 @@ public class GetBucklingResultsComponent : GH_AsyncComponent<GetBucklingResultsC
         _outWarnings = pManager.AddTextParameter("Warnings", "W",
             "Warnings from the SpaceGass API query (multiline text).",
             GH_ParamAccess.item);
+        _outStatus = pManager.AddTextParameter("Status", "S",
+            "Query status summary.", GH_ParamAccess.item);
     }
 
     public override void AppendAdditionalMenuItems(ToolStripDropDown menu)
@@ -262,6 +265,7 @@ public class GetBucklingResultsComponent : GH_AsyncComponent<GetBucklingResultsC
             if (result.LoadFactors.Count == 0 && result.EffectiveLengths.Count == 0)
             {
                 Parent.Message = "No buckling results";
+                Status = "0 load factors, 0 effective lengths queried.";
                 return;
             }
 
@@ -387,6 +391,7 @@ public class GetBucklingResultsComponent : GH_AsyncComponent<GetBucklingResultsC
             var lfCount = result.LoadFactors.Count;
             var elCount = result.EffectiveLengths.Count;
             Parent.Message = $"{lfCount} load factors, {elCount} eff. lengths";
+            Status = $"{lfCount} load factors, {elCount} effective lengths queried.";
         }
 
         public override void SetData(IGH_DataAccess da)
@@ -405,6 +410,7 @@ public class GetBucklingResultsComponent : GH_AsyncComponent<GetBucklingResultsC
             if (OutMembers != null) da.SetDataTree(Parent._outMembers, OutMembers);
             if (OutLines != null) da.SetDataTree(Parent._outLines, OutLines);
             da.SetData(Parent._outWarnings, OutWarningsText ?? "");
+            da.SetData(Parent._outStatus, Status);
         }
     }
 }

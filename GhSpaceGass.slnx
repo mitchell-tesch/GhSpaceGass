@@ -1,10 +1,11 @@
 <Solution>
     <Folder Name="/Solution Items/">
-        <File Path="README.md"/>
-        <File Path="LICENSE"/>
-        <File Path=".gitignore"/>
+        <File Path="README.md" />
+        <File Path="CONTEXT.md" />
+        <File Path="LICENSE" />
+        <File Path=".gitignore" />
     </Folder>
-    <Project Path="GhSpaceGass.Core/GhSpaceGass.Core.csproj"/>
-    <Project Path="GhSpaceGass/GhSpaceGass.csproj"/>
-    <Project Path="GhSpaceGass.Tests/GhSpaceGass.Tests.csproj"/>
+    <Project Path="GhSpaceGass.Core/GhSpaceGass.Core.csproj" />
+    <Project Path="GhSpaceGass/GhSpaceGass.csproj" />
+    <Project Path="GhSpaceGass.Tests/GhSpaceGass.Tests.csproj" />
 </Solution>

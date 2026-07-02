@@ -75,16 +75,16 @@ public class GetMemberForcesComponent : GH_AsyncComponent<GetMemberForcesCompone
         _outLoadCases = pManager.AddTextParameter("Load Cases", "LC",
             "Load case names, one per branch matching the load case dimension of the results tree.",
             GH_ParamAccess.tree);
-        _outMembers = pManager.AddIntegerParameter("Members", "Mb",
+        _outMembers = pManager.AddIntegerParameter("Member IDs", "MbId",
             "Member IDs, branched by {load_case; member}.",
             GH_ParamAccess.tree);
-        _outLines = pManager.AddLineParameter("Lines", "L",
+        _outLines = pManager.AddLineParameter("Member Lines", "MLns",
             "Member geometry, branched by {load_case; member}. Only populated in Intermediate mode.",
             GH_ParamAccess.tree);
-        _outNodes = pManager.AddIntegerParameter("Nodes", "N",
+        _outNodes = pManager.AddIntegerParameter("End Node IDs", "NIds",
             "Node IDs, branched by {load_case; member}. Only populated in End Forces mode.",
             GH_ParamAccess.tree);
-        _outPoints = pManager.AddPointParameter("Points", "P",
+        _outPoints = pManager.AddPointParameter("End Node Points", "P",
             "Node location at each member end, branched by {load_case; member}. Only populated in End Forces mode.",
             GH_ParamAccess.tree);
         _outStations = pManager.AddNumberParameter("Stations", "S",

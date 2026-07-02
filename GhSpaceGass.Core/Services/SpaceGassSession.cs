@@ -19,6 +19,8 @@ public class SpaceGassSession : IDisposable
     private readonly ISpaceGassApiFactory _apiFactory;
     private readonly string _installPath;
 
+    private const double DoubleEqTolerance = 1e-6;
+
     private readonly int _port;
     private readonly IProcessManager _processManager;
     private readonly TimeSpan _startupTimeout;
@@ -680,8 +682,10 @@ public class SpaceGassSession : IDisposable
                 {
                     if (item.LoadCase == null) continue;
                     var factor = item.MultiplyingFactor ?? 1;
-                    var factorStr = factor == 1 ? "1" :
-                        factor == (int)factor ? ((int)factor).ToString() : factor.ToString("G");
+                    
+                    var factorStr = Math.Abs(factor - (int)factor) < DoubleEqTolerance
+                        ? ((int)factor).ToString()
+                        : factor.ToString("0.####");
                     var name = idToName.TryGetValue(item.LoadCase.Value, out var n)
                         ? n
                         : $"LC{item.LoadCase.Value}";
@@ -798,14 +802,6 @@ public class SpaceGassSession : IDisposable
             result.Warnings.Add("No self-weight loads found in the open job.");
 
         return result;
-    }
-
-    /// <summary>
-    ///     Resolves a load case ID to its name using the model's LoadCaseMap and CombinationLoadCaseMap.
-    /// </summary>
-    private static string ResolveLoadCaseName(SgModelData model, int loadCaseId)
-    {
-        return ResolveLoadCaseName(BuildLoadCaseIdToNameMap(model), loadCaseId);
     }
 
     /// <summary>
@@ -1138,7 +1134,6 @@ public class SpaceGassSession : IDisposable
         return units switch
         {
             LoadPositionUnits.Actual => "Actual",
-            LoadPositionUnits.Percent => "Percent",
             _ => "Percent"
         };
     }
