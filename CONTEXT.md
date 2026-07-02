@@ -432,7 +432,14 @@ Core: `ModelAssembler.AssembleAsync` — new `bool appendMode = false` parameter
   Core: `SgPlateLoadsDataResult` + `SgPlateLoadEntry` + `SgPlatePressureLoadInfo` + `SgPlateThermalLoadInfo` domain models, `ISpaceGassApi.ListPlatePressureLoadsAsync`, `SpaceGassApiWrapper` implementation, `SpaceGassSession.GetPlateLoadsDataAsync` (reuses `ListThermalLoadsAsync` + `MapLoadAxes`). 663 passing unit tests total (10 new).
 
 - 
-- [ ] **Slice 33** — Results viewport preview — reaction arrows
+- [x] **Slice 33** — Results viewport preview — reaction arrows
+
+**Delivered (Slice 33):** Updated existing component + two new Core models.
+`Get Node Reactions` (`SpaceGass > Results`, async — same GUID): Two new optional inputs: Scale (number, nickname "Sc" — auto-scale per ADR-0009 when omitted, user override when provided; values ≤ 0 emit warning and fall back to auto-scale), Show Values (bool, default false, nickname "V" — displays numeric magnitude adjacent to each arrow/arc tip in "G4" format). `IsPreviewCapable = true`. `ClippingBox` expanded to include preview geometry extents.
+Viewport preview (when component preview enabled): Force arrows (Fx, Fy, Fz) drawn as straight arrows from node location in force direction, length = |magnitude| × scale. Moment arcs (Mx, My, Mz) drawn as ¾-circle arcs around the moment axis at node location, radius = |magnitude| × scale. Per-axis colours: X=Red (255,0,0), Y=Green (0,150,0), Z=Blue (0,0,255). Line weight: 2px. Arrowheads at tips. Zero-magnitude components skipped. Unmatched node IDs skipped. All queried reactions previewed (filter via Load Cases input for specific cases). Preview geometry pre-computed during SetData and stored for DrawViewportWires — zero per-frame computation.
+Auto-scale formula: `(0.1 × modelBboxDiagonal) / maxReactionMagnitude`. Degenerate inputs (zero bbox or magnitude) default to scale = 1.0.
+Core: `PreviewScaleHelper` (reusable: `ComputeAutoScale`, `ComputeBboxDiagonal`), `ReactionPreviewBuilder.Build` (pure data → `PreviewArrowResult` with `List<PreviewArrow>` + `ComputedScale`), `PreviewArrow` model (Origin, Dx/Dy/Dz, Magnitude, ArrowType, Axis), `ArrowType` enum (Force/Moment). All existing inputs, outputs, data trees, filters, warnings, and status unchanged. 682 passing unit tests total (19 new).
+
 - [ ] **Slice 34** — Results viewport preview — node displacement vectors
 - [ ] **Slice 35** — Results viewport preview — member displaced shape
 - [ ] **Slice 36** — Results viewport preview — member force diagrams
