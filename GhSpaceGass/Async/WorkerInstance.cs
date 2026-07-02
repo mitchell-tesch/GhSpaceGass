@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Grasshopper.Kernel;
@@ -24,6 +25,21 @@ public abstract class WorkerInstance<T>(T parent, string id, CancellationToken c
     public CancellationToken CancellationToken { get; } = cancellationToken;
 
     public string Id { get; set; } = id;
+
+    /// <summary>
+    ///     Runtime messages accumulated during DoWork. These are replayed on the UI thread
+    ///     during SetData so they survive the Grasshopper re-solve message clear.
+    /// </summary>
+    public List<(GH_RuntimeMessageLevel Level, string Message)> PendingMessages { get; } = new();
+
+    /// <summary>
+    ///     Add a runtime message to be displayed on the component after DoWork completes.
+    ///     Call this instead of Parent.AddRuntimeMessage during DoWork.
+    /// </summary>
+    protected void AddRuntimeMessage(GH_RuntimeMessageLevel level, string message)
+    {
+        PendingMessages.Add((level, message));
+    }
 
     /// <summary>
     ///     This is a "factory" method. It should return a fresh instance of this class, but with all the necessary state that

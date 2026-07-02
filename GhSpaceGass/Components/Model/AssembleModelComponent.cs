@@ -11,6 +11,7 @@ using GhSpaceGass.Types;
 using Grasshopper.Kernel;
 using Grasshopper.Kernel.Types;
 using Rhino;
+using GhSpaceGass.Core.Services;
 
 namespace GhSpaceGass.Components.Model;
 
@@ -238,7 +239,7 @@ public class AssembleModelComponent : GH_AsyncComponent<AssembleModelComponent>
                         break;
                     default:
                         if (goo != null)
-                            Parent.AddRuntimeMessage(GH_RuntimeMessageLevel.Warning,
+                            AddRuntimeMessage(GH_RuntimeMessageLevel.Warning,
                                 $"Unrecognised load type '{goo.TypeName}' — skipped.");
                         break;
                 }
@@ -286,8 +287,10 @@ public class AssembleModelComponent : GH_AsyncComponent<AssembleModelComponent>
             catch (Exception ex)
             {
                 Model = null;
-                Status = ex.Message;
+                var message = ModelAssembler.FormatApiError(ex, "assembling model");
+                Status = $"Error: {message}";
                 Parent.Message = "Error";
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, message);
                 if (!CancellationToken.IsCancellationRequested) done();
             }
         }
@@ -311,7 +314,7 @@ public class AssembleModelComponent : GH_AsyncComponent<AssembleModelComponent>
                     if (obj is AssembleModelComponent)
                         count++;
                 if (count > 1)
-                    Parent.AddRuntimeMessage(GH_RuntimeMessageLevel.Warning,
+                    AddRuntimeMessage(GH_RuntimeMessageLevel.Warning,
                         $"{count} Assemble Model components detected. Only the last to solve owns the job.");
             }
 
@@ -324,7 +327,7 @@ public class AssembleModelComponent : GH_AsyncComponent<AssembleModelComponent>
 
             // Warn about append mode recompute risk
             if (AppendMode)
-                Parent.AddRuntimeMessage(GH_RuntimeMessageLevel.Warning,
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Warning,
                     "Append mode: data is added to existing job content. Recomputes will create duplicates.");
 
             // Build status string
@@ -353,7 +356,7 @@ public class AssembleModelComponent : GH_AsyncComponent<AssembleModelComponent>
             foreach (var warning in result.Warnings)
             {
                 statusParts.Add($"Warning: {warning}");
-                Parent.AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, warning);
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, warning);
             }
 
             Status = string.Join("\n", statusParts);

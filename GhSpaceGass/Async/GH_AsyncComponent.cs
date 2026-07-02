@@ -215,7 +215,13 @@ public abstract class GH_AsyncComponent<T> : GH_Component, IDisposable
         if (_workers.Count > 0)
         {
             Interlocked.Decrement(ref _state);
-            _workers[_state].Instance.SetData(da);
+            var worker = _workers[_state].Instance;
+
+            // Replay pending runtime messages on the UI thread (survives GH message clear)
+            foreach (var (level, msg) in worker.PendingMessages)
+                AddRuntimeMessage(level, msg);
+
+            worker.SetData(da);
         }
 
         if (_state != 0) return;

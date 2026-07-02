@@ -7,6 +7,7 @@ using GhSpaceGass.Async;
 using GhSpaceGass.Core.Models;
 using GhSpaceGass.Types;
 using Grasshopper.Kernel;
+using GhSpaceGass.Core.Services;
 
 namespace GhSpaceGass.Components.Loads;
 
@@ -115,7 +116,7 @@ public class GetSelfWeightLoadsComponent : GH_AsyncComponent<GetSelfWeightLoadsC
                 foreach (var w in Result.Warnings)
                 {
                     Status += $"\nWarning: {w}";
-                    Parent.AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, w);
+                    AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, w);
                 }
 
                 Parent.Message = $"{Result.Loads.Count} self-weight loads";
@@ -124,8 +125,10 @@ public class GetSelfWeightLoadsComponent : GH_AsyncComponent<GetSelfWeightLoadsC
             catch (OperationCanceledException) when (CancellationToken.IsCancellationRequested) { }
             catch (Exception ex)
             {
-                Status = ex.Message;
+                var message = ModelAssembler.FormatApiError(ex, "querying self-weight loads");
+                Status = $"Error: {message}";
                 Parent.Message = "Error";
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, message);
                 if (!CancellationToken.IsCancellationRequested) done();
             }
         }

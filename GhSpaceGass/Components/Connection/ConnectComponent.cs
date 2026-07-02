@@ -6,7 +6,10 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using GhSpaceGass.Async;
 using GhSpaceGass.Core.Services;
+using GhSpaceGass.Helpers;
+using GhSpaceGass.Types;
 using Grasshopper.Kernel;
+using SpaceGassApi.Models;
 
 namespace GhSpaceGass.Components.Connection;
 
@@ -14,6 +17,7 @@ public class ConnectComponent : GH_AsyncComponent<ConnectComponent>
 {
     private int _inConnect;
     private int _inFilePath;
+    private int _inForce;
     private int _inInstallPath;
     private int _inPort;
     private int _inShowConsole;
@@ -50,6 +54,12 @@ public class ConnectComponent : GH_AsyncComponent<ConnectComponent>
         _inShowConsole = pManager.AddBooleanParameter("Show Console?", "SC?",
             "Show the SpaceGass API console window when launching the service.",
             GH_ParamAccess.item, true);
+        _inForce = pManager.AddParameter(
+            new Param_SgIntegerOption("Force Option", ValueListHelper.ForceAccessOptions, defaultValue: 0),
+            "Force Option", "FO",
+            "Force open option when the file is locked or has unsaved changes.\n" +
+            "None=0 (default), Open Previous Saved=1, Open Unsaved Most Recent=2.",
+            GH_ParamAccess.item);
         _inInstallPath = pManager.AddTextParameter("Install Path", "IP",
             "Path to SpaceGassApi.exe. If not provided, uses the default install location.",
             GH_ParamAccess.item);
@@ -57,6 +67,7 @@ public class ConnectComponent : GH_AsyncComponent<ConnectComponent>
         pManager[_inPort].Optional = true;
         pManager[_inFilePath].Optional = true;
         pManager[_inShowConsole].Optional = true;
+        pManager[_inForce].Optional = true;
         pManager[_inInstallPath].Optional = true;
     }
 
@@ -86,6 +97,12 @@ public class ConnectComponent : GH_AsyncComponent<ConnectComponent>
         );
     }
 
+    public override void AddedToDocument(GH_Document document)
+    {
+        base.AddedToDocument(document);
+        document.ScheduleSolution(0, doc => ValueListHelper.AutoCreateOnPlacement(this, doc));
+    }
+
     // ── Worker ────────────────────────────────────────────────────
 
     private sealed class ConnectWorker : WorkerInstance<ConnectComponent>
@@ -103,6 +120,7 @@ public class ConnectComponent : GH_AsyncComponent<ConnectComponent>
         private int Port { get; set; }
         private string FilePath { get; set; } = string.Empty;
         private bool ShowConsole { get; set; } = true;
+        private int ForceOption { get; set; }
         private string InstallPath { get; set; } = string.Empty;
 
         private bool IsConnected { get; set; }
@@ -152,6 +170,10 @@ public class ConnectComponent : GH_AsyncComponent<ConnectComponent>
             da.GetData(Parent._inShowConsole, ref showConsole);
             ShowConsole = showConsole;
 
+            var forceOption = 0;
+            da.GetData(Parent._inForce, ref forceOption);
+            ForceOption = forceOption;
+
             var installPath = string.Empty;
             da.GetData(Parent._inInstallPath, ref installPath);
             InstallPath = installPath;
@@ -196,8 +218,10 @@ public class ConnectComponent : GH_AsyncComponent<ConnectComponent>
             catch (Exception ex)
             {
                 IsConnected = false;
-                Status = $"Error: {ex.Message}";
+                var message = ModelAssembler.FormatApiError(ex, "connecting");
+                Status = $"Error: {message}";
                 Parent.Message = "Error";
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, message);
                 if (!CancellationToken.IsCancellationRequested) done();
             }
         }
@@ -267,11 +291,25 @@ public class ConnectComponent : GH_AsyncComponent<ConnectComponent>
             CancellationToken.ThrowIfCancellationRequested();
 
             // Open or create job based on file path
+            var forceAccessOption = (JobForceAccessOption)ForceOption;
             if (File.Exists(jobPath))
             {
-                await session.OpenJobAsync(jobPath, CancellationToken).ConfigureAwait(false);
+                var jobStatus = await session.OpenJobAsync(jobPath, forceAccessOption, CancellationToken)
+                    .ConfigureAwait(false);
+
+                // Check access mode
+                if (jobStatus.AccessMode == AccessMode.ReadOnly)
+                    AddRuntimeMessage(GH_RuntimeMessageLevel.Warning,
+                        "Job opened in read-only mode. Changes cannot be saved.");
+                else if (jobStatus.AccessMode == AccessMode.NoAccess)
+                    AddRuntimeMessage(GH_RuntimeMessageLevel.Error,
+                        "Job has no access — file may be locked by another process.");
+
+                var accessInfo = jobStatus.AccessMode != null
+                    ? $" (Access: {jobStatus.AccessMode})"
+                    : "";
                 Status = $"Connected: {baseUrl}.\n" +
-                         $"Opened: {jobPath}";
+                         $"Opened: {jobPath}{accessInfo}";
             }
             else
             {

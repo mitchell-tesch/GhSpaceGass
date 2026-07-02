@@ -10,6 +10,7 @@ using Grasshopper.Kernel;
 using Grasshopper.Kernel.Data;
 using Grasshopper.Kernel.Types;
 using Rhino.Geometry;
+using GhSpaceGass.Core.Services;
 
 namespace GhSpaceGass.Components.Loads;
 
@@ -224,7 +225,7 @@ public class GetNodeLoadsComponent : GH_AsyncComponent<GetNodeLoadsComponent>
                 foreach (var w in Result.Warnings)
                 {
                     Status += $"\nWarning: {w}";
-                    Parent.AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, w);
+                    AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, w);
                 }
 
                 Parent.Message = $"{Result.NodeEntries.Count} nodes loaded";
@@ -233,8 +234,10 @@ public class GetNodeLoadsComponent : GH_AsyncComponent<GetNodeLoadsComponent>
             catch (OperationCanceledException) when (CancellationToken.IsCancellationRequested) { }
             catch (Exception ex)
             {
-                Status = ex.Message;
+                var message = ModelAssembler.FormatApiError(ex, "querying node loads");
+                Status = $"Error: {message}";
                 Parent.Message = "Error";
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, message);
                 if (!CancellationToken.IsCancellationRequested) done();
             }
         }

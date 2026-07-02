@@ -7,6 +7,7 @@ using GhSpaceGass.Async;
 using GhSpaceGass.Core.Models;
 using GhSpaceGass.Types;
 using Grasshopper.Kernel;
+using GhSpaceGass.Core.Services;
 
 namespace GhSpaceGass.Components.Properties;
 
@@ -130,7 +131,7 @@ public class GetMaterialsComponent : GH_AsyncComponent<GetMaterialsComponent>
                 foreach (var w in Result.Warnings)
                 {
                     Status += $"\nWarning: {w}";
-                    Parent.AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, w);
+                    AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, w);
                 }
 
                 Parent.Message = $"{Result.Materials.Count} materials";
@@ -139,8 +140,10 @@ public class GetMaterialsComponent : GH_AsyncComponent<GetMaterialsComponent>
             catch (OperationCanceledException) when (CancellationToken.IsCancellationRequested) { }
             catch (Exception ex)
             {
-                Status = ex.Message;
+                var message = ModelAssembler.FormatApiError(ex, "querying materials");
+                Status = $"Error: {message}";
                 Parent.Message = "Error";
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, message);
                 if (!CancellationToken.IsCancellationRequested) done();
             }
         }

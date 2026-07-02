@@ -13,6 +13,7 @@ using Grasshopper.Kernel;
 using Grasshopper.Kernel.Data;
 using Grasshopper.Kernel.Types;
 using Rhino.Geometry;
+using GhSpaceGass.Core.Services;
 
 namespace GhSpaceGass.Components.Results;
 
@@ -155,6 +156,7 @@ public class GetMemberForcesComponent : GH_AsyncComponent<GetMemberForcesCompone
         private GH_Structure<GH_Integer> OutMembers { get; set; }
         private GH_Structure<GH_Integer> OutNodes { get; set; }
         private string OutWarningsText { get; set; }
+        private string Status { get; set; } = string.Empty;
 
         public override WorkerInstance<GetMemberForcesComponent> Duplicate(
             string id, CancellationToken cancellationToken)
@@ -213,8 +215,10 @@ public class GetMemberForcesComponent : GH_AsyncComponent<GetMemberForcesCompone
             }
             catch (Exception ex)
             {
-                Parent.AddRuntimeMessage(GH_RuntimeMessageLevel.Error, ex.Message);
+                var message = ModelAssembler.FormatApiError(ex, "querying member forces");
+                Status = $"Error: {message}";
                 Parent.Message = "Error";
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, message);
                 if (!CancellationToken.IsCancellationRequested) done();
             }
         }
@@ -240,7 +244,7 @@ public class GetMemberForcesComponent : GH_AsyncComponent<GetMemberForcesCompone
             var session = SpaceGassSessionManager.Current;
             if (session == null || !session.IsConnected)
             {
-                Parent.AddRuntimeMessage(GH_RuntimeMessageLevel.Warning,
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Warning,
                     "Not connected. Place a SpaceGass Connect component and set Connect? to true.");
                 Parent.Message = "Not connected";
                 return;
@@ -251,7 +255,7 @@ public class GetMemberForcesComponent : GH_AsyncComponent<GetMemberForcesCompone
                 CancellationToken).ConfigureAwait(false);
 
             foreach (var w in result.Warnings)
-                Parent.AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, w);
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, w);
             OutWarningsText = result.Warnings.Count > 0 ? string.Join(Environment.NewLine, result.Warnings) : "";
 
             if (result.EndForces.Count == 0)
@@ -338,7 +342,7 @@ public class GetMemberForcesComponent : GH_AsyncComponent<GetMemberForcesCompone
             var session = SpaceGassSessionManager.Current;
             if (session == null || !session.IsConnected)
             {
-                Parent.AddRuntimeMessage(GH_RuntimeMessageLevel.Warning,
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Warning,
                     "Not connected. Place a SpaceGass Connect component and set Connect? to true.");
                 Parent.Message = "Not connected";
                 return;
@@ -349,7 +353,7 @@ public class GetMemberForcesComponent : GH_AsyncComponent<GetMemberForcesCompone
                 CancellationToken).ConfigureAwait(false);
 
             foreach (var w in result.Warnings)
-                Parent.AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, w);
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, w);
             OutWarningsText = result.Warnings.Count > 0 ? string.Join(Environment.NewLine, result.Warnings) : "";
 
             if (result.Forces.Count == 0)

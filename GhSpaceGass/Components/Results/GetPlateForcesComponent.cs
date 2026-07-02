@@ -10,6 +10,7 @@ using GhSpaceGass.Types;
 using Grasshopper;
 using Grasshopper.Kernel;
 using Grasshopper.Kernel.Data;
+using GhSpaceGass.Core.Services;
 
 namespace GhSpaceGass.Components.Results;
 
@@ -140,6 +141,7 @@ public class GetPlateForcesComponent : GH_AsyncComponent<GetPlateForcesComponent
         private List<SgPoint3D[]> PlateFilter { get; set; }
         private List<string> LoadCaseFilter { get; set; }
         private int Mode { get; set; }
+        private string Status { get; set; } = string.Empty;
 
         // Results
         private SgPlateElementForcesResult ElementResult { get; set; }
@@ -186,7 +188,7 @@ public class GetPlateForcesComponent : GH_AsyncComponent<GetPlateForcesComponent
                 var session = SpaceGassSessionManager.Current;
                 if (session == null || !session.IsConnected)
                 {
-                    Parent.AddRuntimeMessage(GH_RuntimeMessageLevel.Error,
+                    AddRuntimeMessage(GH_RuntimeMessageLevel.Error,
                         "Not connected to SpaceGass.");
                     if (!CancellationToken.IsCancellationRequested) done();
                     return;
@@ -201,7 +203,7 @@ public class GetPlateForcesComponent : GH_AsyncComponent<GetPlateForcesComponent
                         Model, plateFilterArr, lcFilterArr, CancellationToken);
 
                     foreach (var w in ElementResult.Warnings)
-                        Parent.AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, w);
+                        AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, w);
                 }
                 else // Nodal Forces
                 {
@@ -209,7 +211,7 @@ public class GetPlateForcesComponent : GH_AsyncComponent<GetPlateForcesComponent
                         Model, plateFilterArr, lcFilterArr, CancellationToken);
 
                     foreach (var w in NodalResult.Warnings)
-                        Parent.AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, w);
+                        AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, w);
                 }
 
                 if (!CancellationToken.IsCancellationRequested) done();
@@ -217,7 +219,9 @@ public class GetPlateForcesComponent : GH_AsyncComponent<GetPlateForcesComponent
             catch (OperationCanceledException) when (CancellationToken.IsCancellationRequested) { }
             catch (Exception ex)
             {
-                Parent.AddRuntimeMessage(GH_RuntimeMessageLevel.Error, ex.Message);
+                var message = ModelAssembler.FormatApiError(ex, "querying plate forces");
+                Status = $"Error: {message}";
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, message);
                 if (!CancellationToken.IsCancellationRequested) done();
             }
         }

@@ -12,6 +12,7 @@ using Grasshopper.Kernel;
 using Grasshopper.Kernel.Data;
 using Grasshopper.Kernel.Types;
 using Rhino.Geometry;
+using GhSpaceGass.Core.Services;
 
 namespace GhSpaceGass.Components.Results;
 
@@ -109,6 +110,7 @@ public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsCompo
         private GH_Structure<GH_String> OutLoadCases { get; set; }
         private GH_Structure<GH_Integer> OutNodes { get; set; }
         private string OutWarningsText { get; set; }
+        private string Status { get; set; } = string.Empty;
 
         public override WorkerInstance<GetNodeReactionsComponent> Duplicate(string id,
             CancellationToken cancellationToken)
@@ -150,8 +152,10 @@ public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsCompo
             }
             catch (Exception ex)
             {
-                Parent.AddRuntimeMessage(GH_RuntimeMessageLevel.Error, ex.Message);
+                var message = ModelAssembler.FormatApiError(ex, "querying node reactions");
+                Status = $"Error: {message}";
                 Parent.Message = "Error";
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, message);
                 if (!CancellationToken.IsCancellationRequested) done();
             }
         }
@@ -161,7 +165,7 @@ public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsCompo
             var session = SpaceGassSessionManager.Current;
             if (session == null || !session.IsConnected)
             {
-                Parent.AddRuntimeMessage(GH_RuntimeMessageLevel.Warning,
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Warning,
                     "Not connected. Place a SpaceGass Connect component and set Connect? to true.");
                 Parent.Message = "Not connected";
                 return;
@@ -169,7 +173,7 @@ public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsCompo
 
             var result = await session.GetNodeReactionsAsync(InputModel, NodeFilter, LoadCaseFilter, CancellationToken)
                 .ConfigureAwait(false);
-            foreach (var w in result.Warnings) Parent.AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, w);
+            foreach (var w in result.Warnings) AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, w);
             OutWarningsText = result.Warnings.Count > 0 ? string.Join(Environment.NewLine, result.Warnings) : "";
             if (result.Reactions.Count == 0)
             {
