@@ -97,7 +97,7 @@ The Goo type output by both Assemble Model and Disassemble Model. Encapsulates t
 A synchronous Grasshopper component that constructs an in-memory Goo object (e.g., SgNode, SgMember) without making any API calls. Pure data construction.
 
 ### Async Component
-A Grasshopper component that performs API calls on a background thread using the GrasshopperAsyncComponent pattern. The canvas remains responsive during execution. Used by Connect, Assemble Model, Run Analysis, and Results components.
+A Grasshopper component that performs API calls on a background thread using the GrasshopperAsyncComponent pattern. The canvas remains responsive during execution. Used by all components that make API calls — Connect, Assemble Model, Disassemble Model, Save Job, Job Info, Run Analysis, all Results components, and all Get query components. Runtime messages are deferred to the SetData phase (UI thread) via `WorkerInstance.AddRuntimeMessage` to survive the Grasshopper re-solve message clear.
 
 ### Clear & Rebuild
 The default strategy used by Assemble Model: clear all existing model data in the open job (via `Job.Data.Delete(force=true)`) and push the entire model from scratch. The Grasshopper graph is the single source of truth (see ADR-0001). An optional Append mode (Mode input = 1) skips the clear, adding data alongside existing job content — useful for augmenting a model opened via Connect.
@@ -146,7 +146,8 @@ Detailed decisions are recorded in `adr/0001–0015`. Key choices:
 - **Deferred push**: builder components produce Goo; Assemble Model compiles and sends
 - **Server-assigned IDs**: no manual ID allocation; SpaceGass returns IDs on creation
 - **Async via GrasshopperAsyncComponent**: source-included, not NuGet
-- **Results**: all results output data trees with Load Cases, Node IDs, and Member IDs in matching tree structures for easy correlation. Static results use `{load_case}` for node results and `{load_case; member}` for member results (ADR-0008, ADR-0015). Buckling and dynamic frequency results use `{load_case; mode}`. All results components include Load Cases filter input supporting both primary and combination load case names. Viewport geometry preview with auto-scale (deferred to post-release).
+- **Results**: all results output data trees with Load Cases, Node IDs, and Member IDs in matching tree structures for easy correlation. Static results use `{load_case}` for node results, `{load_case; member}` for member results, `{load_case}` for plate element forces, and `{load_case; plate}` for plate nodal forces (ADR-0008, ADR-0015). Buckling and dynamic frequency results use `{load_case; mode}`. All results components include Load Cases filter input supporting both primary and combination load case names. Viewport geometry preview with auto-scale (deferred to post-release).
+- **Error handling**: all async components use `ModelAssembler.FormatApiError` to extract meaningful messages from `ErrorResponse` (Title, Detail, HTTP status code) and `ApiException`. Errors are surfaced as both a component-level error badge (via `AddRuntimeMessage`) and in the Status output.
 - **Member releases**: separate builder component (ADR-0013)
 - **Analysis settings**: builder Goo fed into Run Analysis (ADR-0014)
 
@@ -157,9 +158,9 @@ Detailed decisions are recorded in `adr/0001–0015`. Key choices:
 - [x] **Slice 1+2** — Connect → service health check + job lifecycle
 
 **Delivered (Slices 1+2):** `SpaceGass Connect` component (`SpaceGass > Connection` panel).
-Inputs: `Connect?` (bool, default false — prevents auto-start), `Port` (int, default 34560), `File Path` (optional `.sg` path), `Show Console` (bool, default true — shows the SpaceGass API console window).
+Inputs: `Connect?` (bool, default false — prevents auto-start), `Port` (int, default 34560), `File Path` (optional `.sg` path), `Show Console` (bool, default true — shows the SpaceGass API console window), `Force Option` (value list: None=0 / Open Previous Saved=1 / Open Unsaved Most Recent=2, default None — force open when file is locked or has unsaved changes), `Install Path` (optional custom path to SpaceGassApi.exe).
 Outputs: `Connected?` (bool), `URL` (string — the API service base URL), `Version` (string — SpaceGass version from the service), `Status` (string with connection and job info).
-Behaviour: launches `SpaceGassApi.exe` via `--urls`, probes with `Service.Info.GetAsync()` (2s probe timeout for fast failure when nothing is listening), opens existing file or creates new job (temp file if no path given). Toggle `Connect? = false` to disconnect and kill the service (ADR-0007). Reuses an already-running service without launching (ADR-0004). Core layer in `GhSpaceGass.Core` with 17 passing unit tests.
+Behaviour: launches `SpaceGassApi.exe` via `--urls`, probes with `Service.Info.GetAsync()` (2s probe timeout for fast failure when nothing is listening), opens existing file or creates new job (temp file if no path given). Toggle `Connect? = false` to disconnect and kill the service (ADR-0007). Reuses an already-running service without launching (ADR-0004). After opening a file, checks `AccessMode` — warns if read-only, errors if no access. API errors surfaced via `FormatApiError` with error badge on the component. Core layer in `GhSpaceGass.Core` with 17 passing unit tests.
 
 - [x] **Slice 3** — Create Member + Section + Material + Assemble Model → structure in SpaceGass
 
@@ -430,8 +431,10 @@ Core: `ModelAssembler.AssembleAsync` — new `bool appendMode = false` parameter
   `Get Plate Loads` (`SpaceGass > Loads`, async): Input: Model (SgModel Goo, required — resolves plate IDs → corner points and load case IDs → names). Outputs: all DataTree branched by plate (one branch per unique loaded plate, ordered by plate ID). Shared outputs: Plate IDs (one per branch), Plate Points (3 or 4 corner points per branch). Pressure loads (PP prefix): Load Case ID/Name, Category, Px/Py/Pz, Axes. Thermal loads (TL prefix): Load Case ID/Name, Category, Temperature, Y Gradient, Z Gradient. Empty branches for load types not applied to a plate. Thermal loads filtered to ElementType=Plate only. Unresolved plate IDs warn and skip. 16 outputs total + Status.
   Core: `SgPlateLoadsDataResult` + `SgPlateLoadEntry` + `SgPlatePressureLoadInfo` + `SgPlateThermalLoadInfo` domain models, `ISpaceGassApi.ListPlatePressureLoadsAsync`, `SpaceGassApiWrapper` implementation, `SpaceGassSession.GetPlateLoadsDataAsync` (reuses `ListThermalLoadsAsync` + `MapLoadAxes`). 663 passing unit tests total (10 new).
 
-- [ ] **Slice 33** - Zoom UI for analysis settings components (show common inputs by default, reveal all on zoom)
-- [ ] **Slice 34** — Results viewport preview — reaction arrows
-- [ ] **Slice 35** — Results viewport preview — node displacement vectors
-- [ ] **Slice 36** — Results viewport preview — member displaced shape
-- [ ] **Slice 37** — Results viewport preview — member force diagrams
+- 
+- [ ] **Slice 33** — Results viewport preview — reaction arrows
+- [ ] **Slice 34** — Results viewport preview — node displacement vectors
+- [ ] **Slice 35** — Results viewport preview — member displaced shape
+- [ ] **Slice 36** — Results viewport preview — member force diagrams
+- [ ] **Slice 37** — Add a component for the query of Steel Design Results - List Steel Member Check Summary
+- [ ] **Slice 38** — Zoom UI for analysis settings components (show common inputs by default, reveal all on zoom)
