@@ -87,8 +87,11 @@ An imposed displacement and/or rotation applied at a specific node, within a spe
 ### Assemble Model
 The compile step that collects all in-memory Goo objects (nodes, members, sections, materials, restraints, loads), deduplicates coincident geometry, resolves geometry-to-ID mappings, and pushes the model to SpaceGass via bulk API calls in dependency order. Supports two modes: Rebuild (default — clears existing data first) and Append (adds to existing model content without clearing).
 
+### Disassemble Model
+The reverse of Assemble Model: reads an existing SpaceGass model from the open job via List GET endpoints and outputs the structural geometry (Points, Lines, Meshes) plus a populated SgModel for downstream chaining to Run Analysis and Results. Does not modify the job — read-only.
+
 ### SgModel (Model Object)
-The Goo type output by Assemble Model. Encapsulates the ID ↔ geometry mappings and job context. Flows downstream to Analysis and Results components.
+The Goo type output by both Assemble Model and Disassemble Model. Encapsulates the ID ↔ geometry mappings and job context. Flows downstream to Analysis and Results components.
 
 ### Builder Component
 A synchronous Grasshopper component that constructs an in-memory Goo object (e.g., SgNode, SgMember) without making any API calls. Pure data construction.
@@ -137,7 +140,7 @@ Detailed decisions are recorded in `adr/0001–0015`. Key choices:
 
 - **Round-trip workflow**: GH → SpaceGass (push model) → run analysis → GH (pull results)
 - **Grasshopper tab**: `SpaceGass` (no space)
-- **Panel layout**: `Connection` (Connect, Job Info, Save Job), `Properties` (Create Section, Create Material), `Structure` (Create Member, Create Restraint, Create Release, Create Member Offset, Create Node Constraint, Create Plate), `Loads` (Create Load Case, Create Combination Load Case, Create Load Category, Create Node Load, Create Member Distributed Load, Create Member Concentrated Load, Create Member Prestress Load, Create Self-Weight Load, Create Lumped Mass Load, Create Prescribed Displacement, Create Plate Pressure Load, Create Thermal Load), `Model` (Assemble Model), `Analysis` (Create Analysis Settings, Run Analysis), `Results` (Get Node Reactions, Get Node Displacements, Get Member Forces, Get Member Displacements, Get Buckling Results, Get Dynamic Frequency Results, Get Plate Forces)
+- **Panel layout**: `Connection` (Connect, Job Info, Save Job), `Properties` (Create Section, Create Material), `Structure` (Create Member, Create Restraint, Create Release, Create Member Offset, Create Node Constraint, Create Plate), `Loads` (Create Load Case, Create Combination Load Case, Create Load Category, Create Node Load, Create Member Distributed Load, Create Member Concentrated Load, Create Member Prestress Load, Create Self-Weight Load, Create Lumped Mass Load, Create Prescribed Displacement, Create Plate Pressure Load, Create Thermal Load), `Model` (Assemble Model, Disassemble Model), `Analysis` (Create Analysis Settings, Run Analysis), `Results` (Get Node Reactions, Get Node Displacements, Get Member Forces, Get Member Displacements, Get Buckling Results, Get Dynamic Frequency Results, Get Plate Forces)
 - **Library vs Custom naming**: Unified components — `Create Section` and `Create Material` handle both library (when Library input is connected) and custom (when Library is omitted) modes. Same Goo types for both.
 - **Fine-grained components**: one component per concept
 - **Deferred push**: builder components produce Goo; Assemble Model compiles and sends
@@ -383,7 +386,19 @@ Core: `SpaceGassSession.SaveAndGetInfoAsync(string? filePath, CancellationToken)
 `Assemble Model` (`SpaceGass > Model`, async): New optional input: Mode (value list: Rebuild=0 / Append=1, nickname "MD", default Rebuild). Rebuild mode: unchanged — clears all existing job data before pushing (ADR-0001 Clear & Rebuild). Append mode: skips `ClearJobDataAsync`, pushes materials, sections, nodes, members, restraints, loads etc. on top of whatever exists in the open SpaceGass job. Append mode emits a warning on every run: "Append mode: data is added to existing job content. Recomputes will create duplicates." Status output prefix: "Assembled:" in Rebuild mode, "Appended:" in Append mode. Component message: "Assembled (3N, 2M)" or "Appended (3N, 2M)". Component description updated to mention both modes. Value list auto-creates on placement (existing `Param_SgIntegerOption` pattern). All deduplication, validation, warnings, orphan handling, and dependency ordering within the pushed data remain identical in both modes. ADR-0005 multi-instance warning still applies.
 Core: `ModelAssembler.AssembleAsync` — new `bool appendMode = false` parameter; clear step guarded by `if (!appendMode)`. `SpaceGassSession.AssembleModelAsync` — passes through `appendMode` flag. ADR-0001 amended to document the opt-in Append mode. CONTEXT.md vocabulary updated (Clear & Rebuild, Assemble Model definitions). 573 passing unit tests total (9 new).
 
-- [ ] **Slice 32** - Add component to disassemble a model from an open existing model.
+- [ ] **Slice 32** - Add components to disassemble a model from an open existing model (multiple query components pattern).
+  - [x] **Slice 32.1** — Disassemble Model: core component querying nodes, members, plates + building SgModel with all maps for downstream chaining.
+
+  **Delivered (Slice 32.1):** One new async component + core query support + domain model.
+  `Disassemble Model` (`SpaceGass > Model`, async): Input: Disassemble? (bool, default false). Outputs: Model (SgModel Goo — NodeMap, MemberMap, PlateMap, SectionMap, MaterialMap, LoadCaseMap, CombinationLoadCaseMap populated from the live job), Points (List<Point3d> — node locations ordered by ID), Node IDs, Lines (member geometry A→B), Member IDs, Member Types (display names: Beam, Truss, Cable, etc.), Member Sections (section ID per member), Member Materials (material ID per member), Meshes (one mesh per plate — tri or quad face), Plate IDs, Status. Behaviour: requires active connection; queries nodes → sections → materials → members → plates → load cases from SpaceGass via List GET endpoints; builds SgModelData with populated maps; resolves member/plate geometry via node ID→coordinate lookups; empty model emits warning. Section/material map keys: `Library::Name` for library items, `Name` for custom. Load cases partitioned into LoadCaseMap (Primary) and CombinationLoadCaseMap (Combination) by type. Component message: "Disassembled (3N, 2M, 1P)".
+  Core: `SgDisassembledModel` domain model (SgModelData + Lists of SgDisassembledNode/Member/Plate + Warnings), `ISpaceGassApi.ListNodesAsync` + `ListMembersAsync` + `ListSectionsAsync` + `ListMaterialsAsync` + `ListPlatesAsync` + `ListLoadCasesAsync`, `SpaceGassApiWrapper` implementations, `SpaceGassSession.DisassembleModelAsync` with connection guard, error formatting, and member type mapping. 598 passing unit tests total (25 new).
+
+  - [ ] **Slice 32.2** — Get Section Properties + Get Material Properties query components.
+  - [ ] **Slice 32.3** — Get Load Cases, Combination Load Cases, Load Categories, and Load Groups.
+  - [ ] **Slice 32.4** — Get Self-Weight Loads + Thermal Loads.
+  - [ ] **Slice 32.5** — Get Node Loads, Lumped Mass Loads, Prescribed Displacements.
+  - [ ] **Slice 32.6** — Get Member Concentrated Loads, Member Distributed Loads/Moments, Member Prestress Loads.
+  - [ ] **Slice 32.7** — Get Plate Pressure Loads.
 - [ ] **Slice 33** - Zoom UI for analysis settings components (show common inputs by default, reveal all on zoom)
 - [ ] **Slice 34** — Results viewport preview — reaction arrows
 - [ ] **Slice 35** — Results viewport preview — node displacement vectors

@@ -397,6 +397,30 @@ public static class IconFactory
         return bmp;
     }
 
+    /// <summary>Hero: Disassemble / exploded network of nodes with outward arrows.</summary>
+    public static Bitmap DisassembleModel()
+    {
+        var bmp = Create();
+        using var g = Setup(bmp);
+        using var pen = P(Model, 1.5f);
+        using var dashPen = P(Model, 1f);
+        dashPen.DashStyle = System.Drawing.Drawing2D.DashStyle.Dash;
+        using var brush = B(Model);
+        // Dashed edges (exploded/disassembled)
+        g.DrawLine(dashPen, 4, 18, 12, 4);
+        g.DrawLine(dashPen, 12, 4, 20, 18);
+        g.DrawLine(dashPen, 4, 18, 20, 18);
+        // Nodes
+        g.FillEllipse(brush, 10, 2, 4, 4);   // top
+        g.FillEllipse(brush, 2, 16, 4, 4);   // bottom-left
+        g.FillEllipse(brush, 18, 16, 4, 4);  // bottom-right
+        // Outward arrows
+        g.DrawLine(pen, 12, 4, 12, 1);
+        g.DrawLine(pen, 4, 18, 1, 21);
+        g.DrawLine(pen, 20, 18, 23, 21);
+        return bmp;
+    }
+
     // ═══════════════════════════════════════════════════════════════
     // ANALYSIS PANEL
     // ═══════════════════════════════════════════════════════════════

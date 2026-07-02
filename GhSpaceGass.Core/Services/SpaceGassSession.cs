@@ -340,6 +340,190 @@ public class SpaceGassSession : IDisposable
     }
 
     /// <summary>
+    ///     Reads an existing SpaceGass model from the open job and returns the structural data
+    ///     with populated ID ↔ geometry mappings for downstream chaining to Analysis and Results.
+    /// </summary>
+    public async Task<SgDisassembledModel> DisassembleModelAsync(CancellationToken ct = default)
+    {
+        if (!IsConnected)
+            throw new InvalidOperationException("Not connected to SpaceGass");
+
+        var model = new SgModelData();
+        var result = new SgDisassembledModel(model);
+
+        // ── Query nodes ──────────────────────────────────────────────
+        List<Node> apiNodes;
+        try
+        {
+            apiNodes = await _api!.ListNodesAsync(ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                ModelAssembler.FormatApiError(ex, "querying nodes"), ex);
+        }
+
+        var nodeMap = new Dictionary<int, SgPoint3D>();
+        foreach (var n in apiNodes)
+        {
+            if (n.Id == null) continue;
+            var pt = new SgPoint3D(n.X ?? 0, n.Y ?? 0, n.Z ?? 0);
+            nodeMap[n.Id.Value] = pt;
+            model.NodeMap[pt] = n.Id.Value;
+            result.Nodes.Add(new SgDisassembledNode(n.Id.Value, pt));
+        }
+
+        // ── Query sections ───────────────────────────────────────────
+        List<Section> apiSections;
+        try
+        {
+            apiSections = await _api!.ListSectionsAsync(ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                ModelAssembler.FormatApiError(ex, "querying sections"), ex);
+        }
+
+        foreach (var s in apiSections)
+        {
+            if (s.Id == null || s.Name == null) continue;
+            var key = string.IsNullOrEmpty(s.Library) ? s.Name : $"{s.Library}::{s.Name}";
+            model.SectionMap[key] = s.Id.Value;
+        }
+
+        // ── Query materials ──────────────────────────────────────────
+        List<Material> apiMaterials;
+        try
+        {
+            apiMaterials = await _api!.ListMaterialsAsync(ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                ModelAssembler.FormatApiError(ex, "querying materials"), ex);
+        }
+
+        foreach (var m in apiMaterials)
+        {
+            if (m.Id == null || m.Name == null) continue;
+            var key = string.IsNullOrEmpty(m.Library) ? m.Name : $"{m.Library}::{m.Name}";
+            model.MaterialMap[key] = m.Id.Value;
+        }
+
+        // ── Query members ────────────────────────────────────────────
+        List<Member> apiMembers;
+        try
+        {
+            apiMembers = await _api!.ListMembersAsync(ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                ModelAssembler.FormatApiError(ex, "querying members"), ex);
+        }
+
+        foreach (var m in apiMembers)
+        {
+            if (m.Id == null || m.NodeA == null || m.NodeB == null) continue;
+            if (!nodeMap.TryGetValue(m.NodeA.Value, out var startPt) ||
+                !nodeMap.TryGetValue(m.NodeB.Value, out var endPt))
+                continue;
+
+            model.MemberMap[m.Id.Value] = (startPt, endPt);
+            result.Members.Add(new SgDisassembledMember(
+                m.Id.Value,
+                startPt,
+                endPt,
+                m.Section ?? 0,
+                m.Material ?? 0,
+                MapMemberType(m.Type)));
+        }
+
+        // ── Query plates ─────────────────────────────────────────────
+        List<Plate> apiPlates;
+        try
+        {
+            apiPlates = await _api!.ListPlatesAsync(ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                ModelAssembler.FormatApiError(ex, "querying plates"), ex);
+        }
+
+        foreach (var p in apiPlates)
+        {
+            if (p.Id == null || p.NodeA == null || p.NodeB == null || p.NodeC == null) continue;
+
+            var corners = new List<SgPoint3D>();
+            if (nodeMap.TryGetValue(p.NodeA.Value, out var ptA)) corners.Add(ptA);
+            if (nodeMap.TryGetValue(p.NodeB.Value, out var ptB)) corners.Add(ptB);
+            if (nodeMap.TryGetValue(p.NodeC.Value, out var ptC)) corners.Add(ptC);
+            if (p.NodeD != null && nodeMap.TryGetValue(p.NodeD.Value, out var ptD)) corners.Add(ptD);
+
+            if (corners.Count < 3) continue;
+
+            var cornerArray = corners.ToArray();
+            model.PlateMap[p.Id.Value] = cornerArray;
+            result.Plates.Add(new SgDisassembledPlate(
+                p.Id.Value,
+                cornerArray,
+                p.Material ?? 0));
+        }
+
+        // ── Query load cases ─────────────────────────────────────────
+        List<LoadCase> apiLoadCases;
+        try
+        {
+            apiLoadCases = await _api!.ListLoadCasesAsync(ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                ModelAssembler.FormatApiError(ex, "querying load cases"), ex);
+        }
+
+        foreach (var lc in apiLoadCases)
+        {
+            if (lc.Id == null || lc.Title == null) continue;
+            if (lc.Type == LoadCaseType.Combination)
+                model.CombinationLoadCaseMap[lc.Title] = lc.Id.Value;
+            else if (lc.Type == LoadCaseType.Primary)
+                model.LoadCaseMap[lc.Title] = lc.Id.Value;
+        }
+
+        // ── Empty check ──────────────────────────────────────────────
+        if (result.Nodes.Count == 0)
+            result.Warnings.Add("No structure found in the open job.");
+
+        return result;
+    }
+
+    private static string MapMemberType(MemberType? type)
+    {
+        return type switch
+        {
+            MemberType.Normal => "Beam",
+            MemberType.Truss => "Truss",
+            MemberType.Cable => "Cable",
+            MemberType.CompressionOnly => "Compression Only",
+            MemberType.TensionOnly => "Tension Only",
+            MemberType.Gap => "Gap",
+            MemberType.BrittleFuse => "Brittle Fuse",
+            MemberType.PlasticFuse => "Plastic Fuse",
+            MemberType.Pulley => "Pulley",
+            _ => "Unknown"
+        };
+    }
+
+    /// <summary>
     ///     Runs an analysis on the current job. Dispatches to the appropriate API endpoint
     ///     based on analysis type. Returns a domain result with success/failure,
     ///     elapsed time, run ID, and any warnings.

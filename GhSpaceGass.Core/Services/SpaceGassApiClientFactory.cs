@@ -456,6 +456,42 @@ internal class SpaceGassApiWrapper : ISpaceGassApi
         return (await _client.Job.Headings.PatchAsync(headings, cancellationToken: ct).ConfigureAwait(false))!;
     }
 
+    public async Task<List<Node>> ListNodesAsync(CancellationToken ct = default)
+    {
+        return await _client.Job.Structure.Nodes.GetAsync(cancellationToken: ct).ConfigureAwait(false)
+               ?? new List<Node>();
+    }
+
+    public async Task<List<Member>> ListMembersAsync(CancellationToken ct = default)
+    {
+        return await _client.Job.Structure.Members.GetAsync(cancellationToken: ct).ConfigureAwait(false)
+               ?? new List<Member>();
+    }
+
+    public async Task<List<Section>> ListSectionsAsync(CancellationToken ct = default)
+    {
+        return await _client.Job.Structure.Sections.GetAsync(cancellationToken: ct).ConfigureAwait(false)
+               ?? new List<Section>();
+    }
+
+    public async Task<List<Material>> ListMaterialsAsync(CancellationToken ct = default)
+    {
+        return await _client.Job.Structure.Materials.GetAsync(cancellationToken: ct).ConfigureAwait(false)
+               ?? new List<Material>();
+    }
+
+    public async Task<List<Plate>> ListPlatesAsync(CancellationToken ct = default)
+    {
+        return await _client.Job.Structure.Plates.GetAsync(cancellationToken: ct).ConfigureAwait(false)
+               ?? new List<Plate>();
+    }
+
+    public async Task<List<LoadCase>> ListLoadCasesAsync(CancellationToken ct = default)
+    {
+        return await _client.Job.Loads.LoadCases.GetAsync(cancellationToken: ct).ConfigureAwait(false)
+               ?? new List<LoadCase>();
+    }
+
     public void Dispose()
     {
     }

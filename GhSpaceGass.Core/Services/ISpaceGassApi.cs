@@ -153,6 +153,16 @@ internal interface ISpaceGassApi : IDisposable
     // ── Job Info ─────────────────────────────────────────────────────
     Task<JobStatus> GetFullJobStatusAsync(CancellationToken ct = default);
     Task<JobHeadings> UpdateHeadingsAsync(JobHeadingsUpdate headings, CancellationToken ct = default);
+
+    // ── Structure (list/query) ────────────────────────────────────────
+    Task<List<Node>> ListNodesAsync(CancellationToken ct = default);
+    Task<List<Member>> ListMembersAsync(CancellationToken ct = default);
+    Task<List<Section>> ListSectionsAsync(CancellationToken ct = default);
+    Task<List<Material>> ListMaterialsAsync(CancellationToken ct = default);
+    Task<List<Plate>> ListPlatesAsync(CancellationToken ct = default);
+
+    // ── Loads (list/query) ────────────────────────────────────────────
+    Task<List<LoadCase>> ListLoadCasesAsync(CancellationToken ct = default);
 }
 
 /// <summary>
