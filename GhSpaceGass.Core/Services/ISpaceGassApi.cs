@@ -163,6 +163,8 @@ internal interface ISpaceGassApi : IDisposable
 
     // ── Loads (list/query) ────────────────────────────────────────────
     Task<List<LoadCase>> ListLoadCasesAsync(CancellationToken ct = default);
+    Task<List<LoadCategory>> ListLoadCategoriesAsync(CancellationToken ct = default);
+    Task<List<LoadCaseGroup>> ListLoadCaseGroupsAsync(CancellationToken ct = default);
 }
 
 /// <summary>

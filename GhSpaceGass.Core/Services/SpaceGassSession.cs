@@ -642,6 +642,123 @@ public class SpaceGassSession : IDisposable
     }
 
     /// <summary>
+    ///     Queries all load cases, load categories, and load case groups from the open job.
+    /// </summary>
+    public async Task<SgLoadCaseDataResult> GetLoadCaseDataAsync(CancellationToken ct = default)
+    {
+        if (!IsConnected)
+            throw new InvalidOperationException("Not connected to SpaceGass");
+
+        var result = new SgLoadCaseDataResult();
+
+        // ── Query load cases ─────────────────────────────────────────
+        List<LoadCase> apiLoadCases;
+        try
+        {
+            apiLoadCases = await _api!.ListLoadCasesAsync(ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                ModelAssembler.FormatApiError(ex, "querying load cases"), ex);
+        }
+
+        // Build ID → name lookup for combination item resolution
+        var idToName = new Dictionary<int, string>();
+        foreach (var lc in apiLoadCases)
+            if (lc.Id != null && lc.Title != null)
+                idToName[lc.Id.Value] = lc.Title;
+
+        foreach (var lc in apiLoadCases)
+        {
+            if (lc.Id == null) continue;
+
+            var combinationItems = new List<string>();
+            if (lc.HasCombinationItems == true && lc.CombinationItems != null)
+                foreach (var item in lc.CombinationItems)
+                {
+                    if (item.LoadCase == null) continue;
+                    var factor = item.MultiplyingFactor ?? 1;
+                    var factorStr = factor == 1 ? "1" :
+                        factor == (int)factor ? ((int)factor).ToString() : factor.ToString("G");
+                    var name = idToName.TryGetValue(item.LoadCase.Value, out var n)
+                        ? n
+                        : $"LC{item.LoadCase.Value}";
+                    combinationItems.Add($"{factorStr}×{name}");
+                }
+
+            result.LoadCases.Add(new SgLoadCaseInfo(
+                lc.Id.Value,
+                lc.Title ?? "",
+                MapLoadCaseType(lc.Type),
+                lc.Notes ?? "",
+                combinationItems));
+        }
+
+        // ── Query load categories ────────────────────────────────────
+        List<LoadCategory> apiCategories;
+        try
+        {
+            apiCategories = await _api!.ListLoadCategoriesAsync(ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                ModelAssembler.FormatApiError(ex, "querying load categories"), ex);
+        }
+
+        foreach (var cat in apiCategories)
+        {
+            if (cat.Id == null) continue;
+            result.Categories.Add(new SgLoadCategoryInfo(
+                cat.Id.Value,
+                cat.Title ?? "",
+                cat.Notes ?? ""));
+        }
+
+        // ── Query load case groups ───────────────────────────────────
+        List<LoadCaseGroup> apiGroups;
+        try
+        {
+            apiGroups = await _api!.ListLoadCaseGroupsAsync(ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                ModelAssembler.FormatApiError(ex, "querying load case groups"), ex);
+        }
+
+        foreach (var grp in apiGroups)
+        {
+            if (grp.Id == null) continue;
+            result.Groups.Add(new SgLoadCaseGroupInfo(
+                grp.Id.Value,
+                grp.Title ?? "",
+                grp.LoadCaseList ?? ""));
+        }
+
+        if (result.LoadCases.Count == 0)
+            result.Warnings.Add("No load cases found in the open job.");
+
+        return result;
+    }
+
+    private static string MapLoadCaseType(LoadCaseType? type)
+    {
+        return type switch
+        {
+            LoadCaseType.Primary => "Primary",
+            LoadCaseType.Combination => "Combination",
+            LoadCaseType.Step => "Step",
+            LoadCaseType.Unused => "Unused",
+            _ => "Unknown"
+        };
+    }
+
+    /// <summary>
     ///     Runs an analysis on the current job. Dispatches to the appropriate API endpoint
     ///     based on analysis type. Returns a domain result with success/failure,
     ///     elapsed time, run ID, and any warnings.

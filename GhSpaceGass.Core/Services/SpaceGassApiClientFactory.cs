@@ -492,6 +492,18 @@ internal class SpaceGassApiWrapper : ISpaceGassApi
                ?? new List<LoadCase>();
     }
 
+    public async Task<List<LoadCategory>> ListLoadCategoriesAsync(CancellationToken ct = default)
+    {
+        return await _client.Job.Loads.LoadCategories.GetAsync(cancellationToken: ct).ConfigureAwait(false)
+               ?? new List<LoadCategory>();
+    }
+
+    public async Task<List<LoadCaseGroup>> ListLoadCaseGroupsAsync(CancellationToken ct = default)
+    {
+        return await _client.Job.Loads.LoadCaseGroups.GetAsync(cancellationToken: ct).ConfigureAwait(false)
+               ?? new List<LoadCaseGroup>();
+    }
+
     public void Dispose()
     {
     }
