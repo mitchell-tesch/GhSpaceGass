@@ -325,6 +325,7 @@ public class SpaceGassSession : IDisposable
         IReadOnlyList<SgPlateData>? plates = null,
         IReadOnlyList<SgPlatePressureLoadData>? platePressureLoads = null,
         IReadOnlyList<SgThermalLoadData>? thermalLoads = null,
+        bool appendMode = false,
         CancellationToken ct = default)
     {
         if (!IsConnected)
@@ -335,7 +336,7 @@ public class SpaceGassSession : IDisposable
             memberDistributedLoads, selfWeightLoads, combinationLoadCases,
             lumpedMassLoads, prescribedDisplacements, memberConcentratedLoads,
             memberPrestressLoads, nodeConstraints, plates, platePressureLoads,
-            thermalLoads, ct).ConfigureAwait(false);
+            thermalLoads, appendMode, ct).ConfigureAwait(false);
     }
 
     /// <summary>

@@ -85,7 +85,7 @@ A concentrated mass applied at a specific node, within a specific load case. Use
 An imposed displacement and/or rotation applied at a specific node, within a specific load case. Used to model support settlements or forced displacements (e.g., differential settlement of a foundation). Has translation components (Tx, Ty, Tz) and rotation components (Rx, Ry, Rz). Created by the `Create Prescribed Displacement` builder component and pushed via `Job.Loads.NodeDisplacements.Bulk.PostAsync`.
 
 ### Assemble Model
-The compile step that collects all in-memory Goo objects (nodes, members, sections, materials, restraints, loads), deduplicates coincident geometry, resolves geometry-to-ID mappings, and pushes the complete model to SpaceGass via bulk API calls in dependency order.
+The compile step that collects all in-memory Goo objects (nodes, members, sections, materials, restraints, loads), deduplicates coincident geometry, resolves geometry-to-ID mappings, and pushes the model to SpaceGass via bulk API calls in dependency order. Supports two modes: Rebuild (default — clears existing data first) and Append (adds to existing model content without clearing).
 
 ### SgModel (Model Object)
 The Goo type output by Assemble Model. Encapsulates the ID ↔ geometry mappings and job context. Flows downstream to Analysis and Results components.
@@ -97,7 +97,7 @@ A synchronous Grasshopper component that constructs an in-memory Goo object (e.g
 A Grasshopper component that performs API calls on a background thread using the GrasshopperAsyncComponent pattern. The canvas remains responsive during execution. Used by Connect, Assemble Model, Run Analysis, and Results components.
 
 ### Clear & Rebuild
-The strategy used by Assemble Model on every recompute: clear all existing model data in the open job (via `Job.Data.Delete(force=true)`) and push the entire model from scratch. The Grasshopper graph is always the single source of truth (see ADR-0001).
+The default strategy used by Assemble Model: clear all existing model data in the open job (via `Job.Data.Delete(force=true)`) and push the entire model from scratch. The Grasshopper graph is the single source of truth (see ADR-0001). An optional Append mode (Mode input = 1) skips the clear, adding data alongside existing job content — useful for augmenting a model opened via Connect.
 
 ### Orphan Point
 A Point3d referenced by a restraint or load that does not coincide (within tolerance) with any member endpoint. Assemble Model creates a standalone node for it and emits a warning (see ADR-0002).
@@ -377,8 +377,15 @@ Outputs: `Saved?` (bool), `File Path` (string — path the job was saved to), `S
 Behaviour: requires active connection via singleton session. When `Save? = false`: outputs `Saved? = false` and idle status. When `Save? = true` with explicit path: saves to that path. When `Save? = true` without path: resolves the current file path from the job state; errors if no file is associated. After saving, queries full job status for the summary output. Component message: "Saved" / "Error" / empty.
 Core: `SpaceGassSession.SaveAndGetInfoAsync(string? filePath, CancellationToken)` — resolves path → saves → queries status → returns `SgJobInfo`. 562 passing unit tests total (11 new).
 
-- [ ] **Slice 31** - Add component to disassemble a model from an open existing model.
-- [ ] **Slice 31.5** - Add an append mode to the Assemble Model component, so that it adds to an exsiting model.
-- [ ] **Slice 32** - Zoom UI for analysis settings components (show common inputs by default, reveal all on zoom)
-- [ ] **Slice 33** — Results viewport preview — reaction arrows
-- [ ] **Slice 34** — Results viewport preview — displaced shape + force diagrams
+- [x] **Slice 31** - Add an append mode to the Assemble Model component, so that it adds to an existing model opened from the Connect component.
+
+**Delivered (Slice 31):** Updated Assemble Model component + core assembler + ADR-0001 amendment.
+`Assemble Model` (`SpaceGass > Model`, async): New optional input: Mode (value list: Rebuild=0 / Append=1, nickname "MD", default Rebuild). Rebuild mode: unchanged — clears all existing job data before pushing (ADR-0001 Clear & Rebuild). Append mode: skips `ClearJobDataAsync`, pushes materials, sections, nodes, members, restraints, loads etc. on top of whatever exists in the open SpaceGass job. Append mode emits a warning on every run: "Append mode: data is added to existing job content. Recomputes will create duplicates." Status output prefix: "Assembled:" in Rebuild mode, "Appended:" in Append mode. Component message: "Assembled (3N, 2M)" or "Appended (3N, 2M)". Component description updated to mention both modes. Value list auto-creates on placement (existing `Param_SgIntegerOption` pattern). All deduplication, validation, warnings, orphan handling, and dependency ordering within the pushed data remain identical in both modes. ADR-0005 multi-instance warning still applies.
+Core: `ModelAssembler.AssembleAsync` — new `bool appendMode = false` parameter; clear step guarded by `if (!appendMode)`. `SpaceGassSession.AssembleModelAsync` — passes through `appendMode` flag. ADR-0001 amended to document the opt-in Append mode. CONTEXT.md vocabulary updated (Clear & Rebuild, Assemble Model definitions). 573 passing unit tests total (9 new).
+
+- [ ] **Slice 32** - Add component to disassemble a model from an open existing model.
+- [ ] **Slice 33** - Zoom UI for analysis settings components (show common inputs by default, reveal all on zoom)
+- [ ] **Slice 34** — Results viewport preview — reaction arrows
+- [ ] **Slice 35** — Results viewport preview — node displacement vectors
+- [ ] **Slice 36** — Results viewport preview — member displaced shape
+- [ ] **Slice 37** — Results viewport preview — member force diagrams

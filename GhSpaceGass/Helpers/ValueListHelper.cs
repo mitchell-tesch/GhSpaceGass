@@ -151,6 +151,13 @@ public static class ValueListHelper
         new("Element Forces", "0"), new("Nodal Forces", "1")
     };
 
+    // ── Assembly options ────────────────────────────────────────────
+
+    public static readonly Option[] AssemblyModeOptions =
+    {
+        new("Rebuild", "0"), new("Append", "1")
+    };
+
     // ── Methods ─────────────────────────────────────────────────────
 
 

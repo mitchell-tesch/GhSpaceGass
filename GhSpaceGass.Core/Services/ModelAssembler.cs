@@ -30,6 +30,7 @@ public class ModelAssembler
         IReadOnlyList<SgPlateData>? plates = null,
         IReadOnlyList<SgPlatePressureLoadData>? platePressureLoads = null,
         IReadOnlyList<SgThermalLoadData>? thermalLoads = null,
+        bool appendMode = false,
         CancellationToken ct = default)
     {
         var model = new SgModelData();
@@ -44,17 +45,21 @@ public class ModelAssembler
         }
 
         // ── Step 1: Clear existing data (ADR-0001 — Clear & Rebuild) ──
-        try
+        // In append mode, skip the clear to add data alongside existing job content.
+        if (!appendMode)
         {
-            await api.ClearJobDataAsync(ct).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            throw new InvalidOperationException(FormatApiError(ex, "clearing job data"), ex);
+            try
+            {
+                await api.ClearJobDataAsync(ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException(FormatApiError(ex, "clearing job data"), ex);
+            }
         }
 
         // ── Step 2: Deduplicate and create materials ──────────────────

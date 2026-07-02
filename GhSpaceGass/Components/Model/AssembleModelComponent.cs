@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using GhSpaceGass.Async;
 using GhSpaceGass.Core.Models;
+using GhSpaceGass.Helpers;
 using GhSpaceGass.Types;
 using Grasshopper.Kernel;
 using Grasshopper.Kernel.Types;
@@ -20,6 +21,7 @@ public class AssembleModelComponent : GH_AsyncComponent<AssembleModelComponent>
     private int _inConstraints;
     private int _inLoads;
     private int _inMembers;
+    private int _inMode;
     private int _inPlates;
     private int _inRestraints;
     private int _inTolerance;
@@ -29,7 +31,8 @@ public class AssembleModelComponent : GH_AsyncComponent<AssembleModelComponent>
 
     public AssembleModelComponent()
         : base("SG Assemble Model", "sgAssemble",
-            "Compile structural data (members, restraints, loads) into a SpaceGass model and push to the open job.",
+            "Compile structural data (members, restraints, loads) into a SpaceGass model and push to the open job.\n" +
+            "Mode: Rebuild (default) clears existing data first; Append adds to the existing model.",
             "SpaceGass", "6 | Model")
     {
         BaseWorker = new AssembleWorker(this);
@@ -73,6 +76,12 @@ public class AssembleModelComponent : GH_AsyncComponent<AssembleModelComponent>
         _inTolerance = pManager.AddNumberParameter("Tolerance", "T",
             "Coincidence tolerance for node deduplication. Defaults to Rhino document tolerance.",
             GH_ParamAccess.item);
+        _inMode = pManager.AddParameter(
+            new Param_SgIntegerOption("Mode", ValueListHelper.AssemblyModeOptions, defaultValue: 0),
+            "Mode", "MD",
+            "Assembly mode (Rebuild=0 — clear existing data first, Append=1 — add to existing model).\n" +
+            "Default = Rebuild.",
+            GH_ParamAccess.item);
 
         pManager[_inMembers].Optional = true;
         pManager[_inPlates].Optional = true;
@@ -81,6 +90,7 @@ public class AssembleModelComponent : GH_AsyncComponent<AssembleModelComponent>
         pManager[_inLoads].Optional = true;
         pManager[_inCombinationLoadCases].Optional = true;
         pManager[_inTolerance].Optional = true;
+        pManager[_inMode].Optional = true;
     }
 
     protected override void RegisterOutputParams(GH_OutputParamManager pManager)
@@ -98,6 +108,12 @@ public class AssembleModelComponent : GH_AsyncComponent<AssembleModelComponent>
     {
         base.AppendAdditionalMenuItems(menu);
         Menu_AppendItem(menu, "Cancel", (_, _) => { RequestCancellation(); });
+    }
+
+    public override void AddedToDocument(GH_Document document)
+    {
+        base.AddedToDocument(document);
+        document.ScheduleSolution(0, doc => ValueListHelper.AutoCreateOnPlacement(this, doc));
     }
 
     // ── Worker ────────────────────────────────────────────────────
@@ -128,6 +144,7 @@ public class AssembleModelComponent : GH_AsyncComponent<AssembleModelComponent>
         private List<SgThermalLoadData> ThermalLoads { get; set; } = new();
         private List<SgCombinationLoadCaseData> CombinationLoadCases { get; set; } = new();
         private double Tolerance { get; set; }
+        private bool AppendMode { get; set; }
 
         private SgModelData Model { get; set; }
         private string Status { get; set; } = string.Empty;
@@ -239,6 +256,11 @@ public class AssembleModelComponent : GH_AsyncComponent<AssembleModelComponent>
             var tolerance = RhinoDoc.ActiveDoc?.ModelAbsoluteTolerance ?? 0.001;
             da.GetData(Parent._inTolerance, ref tolerance);
             Tolerance = tolerance;
+
+            // Assembly mode (0 = Rebuild, 1 = Append)
+            var mode = 0;
+            da.GetData(Parent._inMode, ref mode);
+            AppendMode = mode == 1;
         }
 
         public override async Task DoWork(Action<string, double> reportProgress, Action done)
@@ -296,14 +318,20 @@ public class AssembleModelComponent : GH_AsyncComponent<AssembleModelComponent>
             var result = await session.AssembleModelAsync(
                     Members, Tolerance, Restraints, NodeLoads, DistLoads, SelfWeightLoads, CombinationLoadCases,
                     LumpedMassLoads, PrescribedDisplacements, MemberConcentratedLoads, MemberPrestressLoads,
-                    Constraints, Plates, PlatePressureLoads, ThermalLoads, CancellationToken)
+                    Constraints, Plates, PlatePressureLoads, ThermalLoads, AppendMode, CancellationToken)
                 .ConfigureAwait(false);
             Model = result.Model;
 
+            // Warn about append mode recompute risk
+            if (AppendMode)
+                Parent.AddRuntimeMessage(GH_RuntimeMessageLevel.Warning,
+                    "Append mode: data is added to existing job content. Recomputes will create duplicates.");
+
             // Build status string
+            var modeLabel = AppendMode ? "Appended" : "Assembled";
             var statusParts = new List<string>
             {
-                $"Assembled: {Model.NodeMap.Count} nodes, {Model.MemberMap.Count} members, " +
+                $"{modeLabel}: {Model.NodeMap.Count} nodes, {Model.MemberMap.Count} members, " +
                 $"{Model.PlateMap.Count} plates, " +
                 $"{Model.SectionMap.Count} sections, {Model.MaterialMap.Count} materials, " +
                 $"{Model.RestraintMap.Count} restraints, " +
@@ -329,7 +357,8 @@ public class AssembleModelComponent : GH_AsyncComponent<AssembleModelComponent>
             }
 
             Status = string.Join("\n", statusParts);
-            Parent.Message = $"Assembled ({Model.NodeMap.Count}N, {Model.MemberMap.Count}M)";
+            var messageLabel = AppendMode ? "Appended" : "Assembled";
+            Parent.Message = $"{messageLabel} ({Model.NodeMap.Count}N, {Model.MemberMap.Count}M)";
         }
 
         public override void SetData(IGH_DataAccess da)
