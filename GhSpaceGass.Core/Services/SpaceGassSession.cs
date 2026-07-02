@@ -524,6 +524,124 @@ public class SpaceGassSession : IDisposable
     }
 
     /// <summary>
+    ///     Queries all section properties from the open SpaceGass job.
+    /// </summary>
+    public async Task<SgSectionPropertiesResult> GetSectionPropertiesAsync(CancellationToken ct = default)
+    {
+        if (!IsConnected)
+            throw new InvalidOperationException("Not connected to SpaceGass");
+
+        var result = new SgSectionPropertiesResult();
+
+        List<Section> apiSections;
+        try
+        {
+            apiSections = await _api!.ListSectionsAsync(ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                ModelAssembler.FormatApiError(ex, "querying section properties"), ex);
+        }
+
+        foreach (var s in apiSections)
+        {
+            if (s.Id == null) continue;
+            result.Sections.Add(new SgSectionPropertyData(
+                s.Id.Value,
+                s.Name ?? "",
+                s.Library ?? "",
+                MapPropertySource(s.Source),
+                s.A ?? 0,
+                s.Iy ?? 0,
+                s.Iz ?? 0,
+                s.J ?? 0,
+                s.Ay ?? 0,
+                s.Az ?? 0,
+                s.PrincipalAngle ?? 0,
+                s.Mark ?? "",
+                s.AreaFactor ?? 0,
+                s.IyFactor ?? 0,
+                s.IzFactor ?? 0,
+                s.TorsionFactor ?? 0,
+                s.Transposed ?? false,
+                MapAngleType(s.AngleType)));
+        }
+
+        if (result.Sections.Count == 0)
+            result.Warnings.Add("No sections found in the open job.");
+
+        return result;
+    }
+
+    /// <summary>
+    ///     Queries all material properties from the open SpaceGass job.
+    /// </summary>
+    public async Task<SgMaterialPropertiesResult> GetMaterialPropertiesAsync(CancellationToken ct = default)
+    {
+        if (!IsConnected)
+            throw new InvalidOperationException("Not connected to SpaceGass");
+
+        var result = new SgMaterialPropertiesResult();
+
+        List<Material> apiMaterials;
+        try
+        {
+            apiMaterials = await _api!.ListMaterialsAsync(ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                ModelAssembler.FormatApiError(ex, "querying material properties"), ex);
+        }
+
+        foreach (var m in apiMaterials)
+        {
+            if (m.Id == null) continue;
+            result.Materials.Add(new SgMaterialPropertyData(
+                m.Id.Value,
+                m.Name ?? "",
+                m.Library ?? "",
+                MapPropertySource(m.Source),
+                m.YoungsModulus ?? 0,
+                m.PoissonsRatio ?? 0,
+                m.MassDensity ?? 0,
+                m.ThermalCoeff ?? 0,
+                m.ConcreteStrength ?? 0));
+        }
+
+        if (result.Materials.Count == 0)
+            result.Warnings.Add("No materials found in the open job.");
+
+        return result;
+    }
+
+    private static string MapPropertySource(PropertySource? source)
+    {
+        return source switch
+        {
+            PropertySource.Library => "Library",
+            PropertySource.User => "User",
+            _ => "Unknown"
+        };
+    }
+
+    private static string MapAngleType(AngleType? angleType)
+    {
+        return angleType switch
+        {
+            AngleType.NotApplicable => "Not Applicable",
+            AngleType.SingleType => "Single",
+            AngleType.ShortShort => "Short-Short",
+            AngleType.LongLong => "Long-Long",
+            AngleType.Starred => "Starred",
+            _ => "Not Applicable"
+        };
+    }
+
+    /// <summary>
     ///     Runs an analysis on the current job. Dispatches to the appropriate API endpoint
     ///     based on analysis type. Returns a domain result with success/failure,
     ///     elapsed time, run ID, and any warnings.

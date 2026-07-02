@@ -151,6 +151,48 @@ public static class IconFactory
         return bmp;
     }
 
+    /// <summary>I-beam cross-section with query indicator (list lines).</summary>
+    public static Bitmap GetSectionProperties()
+    {
+        var bmp = Create();
+        using var g = Setup(bmp);
+        using var brush = B(Properties);
+        using var pen = P(Properties, 1.5f);
+        // I-beam shape (smaller, offset left)
+        g.FillRectangle(brush, 2, 4, 12, 2);   // top flange
+        g.FillRectangle(brush, 6, 6, 4, 8);    // web
+        g.FillRectangle(brush, 2, 14, 12, 2);  // bottom flange
+        // List lines (right side, indicating "query/list")
+        g.DrawLine(pen, 16, 6, 22, 6);
+        g.DrawLine(pen, 16, 10, 22, 10);
+        g.DrawLine(pen, 16, 14, 22, 14);
+        return bmp;
+    }
+
+    /// <summary>Material cube with query indicator (list lines).</summary>
+    public static Bitmap GetMaterialProperties()
+    {
+        var bmp = Create();
+        using var g = Setup(bmp);
+        using var pen = P(Properties, 1.5f);
+        using var brush = B(Properties);
+        // Small cube (offset left)
+        var top = new PointF[] { new(8, 3), new(15, 6), new(8, 9), new(1, 6) };
+        var left = new PointF[] { new(1, 6), new(8, 9), new(8, 16), new(1, 13) };
+        var right = new PointF[] { new(8, 9), new(15, 6), new(15, 13), new(8, 16) };
+        g.FillPolygon(B(Color.FromArgb(180, Properties.R, Properties.G, Properties.B)), top);
+        g.FillPolygon(brush, left);
+        g.FillPolygon(B(Color.FromArgb(120, Properties.R, Properties.G, Properties.B)), right);
+        g.DrawPolygon(pen, top);
+        g.DrawPolygon(pen, left);
+        g.DrawPolygon(pen, right);
+        // List lines (right side)
+        g.DrawLine(pen, 17, 6, 23, 6);
+        g.DrawLine(pen, 17, 10, 23, 10);
+        g.DrawLine(pen, 17, 14, 23, 14);
+        return bmp;
+    }
+
     // ═══════════════════════════════════════════════════════════════
     // STRUCTURE PANEL
     // ═══════════════════════════════════════════════════════════════
