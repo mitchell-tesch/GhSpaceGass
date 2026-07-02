@@ -32,7 +32,8 @@ public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsCompo
 
     public GetNodeReactionsComponent()
         : base("SG Node Reactions", "sgReactions",
-            "Query node reaction forces and moments from a completed SpaceGass analysis.",
+            "Query node reaction forces and moments from a completed SpaceGass analysis. " +
+            "Draws force arrows and moment arcs in the viewport when preview is enabled.",
             "SpaceGass", "8 | Results")
     {
         BaseWorker = new GetNodeReactionsWorker(this);

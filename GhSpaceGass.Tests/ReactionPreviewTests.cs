@@ -156,7 +156,7 @@ public class ReactionPreviewTests
         var arrow = result.Arrows[0];
         // Arrow Dx should be magnitude × scale = 100 × 0.1 = 10
         Assert.Equal(10.0, arrow.Dx, 6);
-        Assert.Equal(result.ComputedScale, 0.1, 6);
+        Assert.Equal(0.1, result.ForceScale, 6);
     }
 
     [Fact]
@@ -174,7 +174,51 @@ public class ReactionPreviewTests
         var arrow = result.Arrows[0];
         // Arrow Dx should be magnitude × userScale = 100 × 0.5 = 50
         Assert.Equal(50.0, arrow.Dx, 6);
-        Assert.Equal(0.5, result.ComputedScale, 6);
+        Assert.Equal(0.5, result.ForceScale, 6);
+    }
+
+    [Fact]
+    public void Build_SeparateScalesForForcesAndMoments()
+    {
+        // Forces much larger than moments — each type should scale independently
+        var reactions = new[]
+        {
+            new SgNodeReactionData(nodeId: 1, loadCaseId: 1,
+                fx: 1000, fy: 0, fz: 0, mx: 0, my: 0, mz: 5)
+        };
+        var nodeMap = new Dictionary<int, SgPoint3D> { [1] = new(0, 0, 0) };
+
+        // bbox diagonal = 100
+        // force auto-scale = (0.1 × 100) / 1000 = 0.01
+        // moment auto-scale = (0.1 × 100) / 5 = 2.0
+        var result = ReactionPreviewBuilder.Build(reactions, nodeMap, 100.0, userScale: null);
+
+        Assert.Equal(0.01, result.ForceScale, 6);
+        Assert.Equal(2.0, result.MomentScale, 6);
+
+        var forceArrow = result.Arrows.First(a => a.Type == ArrowType.Force);
+        var momentArc = result.Arrows.First(a => a.Type == ArrowType.Moment);
+
+        // Force Dx = 1000 × 0.01 = 10
+        Assert.Equal(10.0, forceArrow.Dx, 6);
+        // Moment Dz = 5 × 2.0 = 10 (both types produce similar-sized arrows)
+        Assert.Equal(10.0, momentArc.Dz, 6);
+    }
+
+    [Fact]
+    public void Build_UserScaleOverride_AppliesUniformlyToBoth()
+    {
+        var reactions = new[]
+        {
+            new SgNodeReactionData(nodeId: 1, loadCaseId: 1,
+                fx: 1000, fy: 0, fz: 0, mx: 0, my: 0, mz: 5)
+        };
+        var nodeMap = new Dictionary<int, SgPoint3D> { [1] = new(0, 0, 0) };
+
+        var result = ReactionPreviewBuilder.Build(reactions, nodeMap, 100.0, userScale: 0.05);
+
+        Assert.Equal(0.05, result.ForceScale, 6);
+        Assert.Equal(0.05, result.MomentScale, 6);
     }
 
     [Fact]

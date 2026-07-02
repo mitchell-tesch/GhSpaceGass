@@ -47,17 +47,26 @@ public class PreviewArrow
     public int Axis { get; }
 }
 
-/// <summary>Result of building preview arrows — the arrows plus the computed scale factor.</summary>
+/// <summary>Result of building preview arrows — the arrows plus the computed scale factors.</summary>
 public class PreviewArrowResult
 {
-    public PreviewArrowResult(List<PreviewArrow> arrows, double computedScale)
+    public PreviewArrowResult(List<PreviewArrow> arrows, double forceScale, double momentScale)
     {
         Arrows = arrows;
-        ComputedScale = computedScale;
+        ForceScale = forceScale;
+        MomentScale = momentScale;
     }
 
     public List<PreviewArrow> Arrows { get; }
-    public double ComputedScale { get; }
+
+    /// <summary>Scale factor applied to force arrows (auto or user-provided).</summary>
+    public double ForceScale { get; }
+
+    /// <summary>Scale factor applied to moment arcs (auto or user-provided).</summary>
+    public double MomentScale { get; }
+
+    /// <summary>Convenience: the force scale (for backward-compatible test access).</summary>
+    public double ComputedScale => ForceScale;
 }
 
 /// <summary>
@@ -81,21 +90,24 @@ public static class ReactionPreviewBuilder
         double? userScale)
     {
         if (reactions.Count == 0)
-            return new PreviewArrowResult(new List<PreviewArrow>(), 1.0);
+            return new PreviewArrowResult(new List<PreviewArrow>(), 1.0, 1.0);
 
-        // Find max magnitude across all force/moment components
-        var maxMagnitude = 0.0;
+        // Compute separate max magnitudes for forces and moments (different units)
+        var maxForceMag = 0.0;
+        var maxMomentMag = 0.0;
         foreach (var r in reactions)
         {
-            maxMagnitude = Math.Max(maxMagnitude, Math.Abs(r.Fx));
-            maxMagnitude = Math.Max(maxMagnitude, Math.Abs(r.Fy));
-            maxMagnitude = Math.Max(maxMagnitude, Math.Abs(r.Fz));
-            maxMagnitude = Math.Max(maxMagnitude, Math.Abs(r.Mx));
-            maxMagnitude = Math.Max(maxMagnitude, Math.Abs(r.My));
-            maxMagnitude = Math.Max(maxMagnitude, Math.Abs(r.Mz));
+            maxForceMag = Math.Max(maxForceMag, Math.Abs(r.Fx));
+            maxForceMag = Math.Max(maxForceMag, Math.Abs(r.Fy));
+            maxForceMag = Math.Max(maxForceMag, Math.Abs(r.Fz));
+            maxMomentMag = Math.Max(maxMomentMag, Math.Abs(r.Mx));
+            maxMomentMag = Math.Max(maxMomentMag, Math.Abs(r.My));
+            maxMomentMag = Math.Max(maxMomentMag, Math.Abs(r.Mz));
         }
 
-        var scale = userScale ?? PreviewScaleHelper.ComputeAutoScale(bboxDiagonal, maxMagnitude);
+        // When user provides a scale, apply uniformly; otherwise auto-scale separately
+        var forceScale = userScale ?? PreviewScaleHelper.ComputeAutoScale(bboxDiagonal, maxForceMag);
+        var momentScale = userScale ?? PreviewScaleHelper.ComputeAutoScale(bboxDiagonal, maxMomentMag);
         var arrows = new List<PreviewArrow>();
 
         foreach (var r in reactions)
@@ -105,21 +117,21 @@ public static class ReactionPreviewBuilder
 
             // Force arrows (Fx, Fy, Fz)
             if (r.Fx != 0)
-                arrows.Add(new PreviewArrow(origin, r.Fx * scale, 0, 0, r.Fx, ArrowType.Force, 0));
+                arrows.Add(new PreviewArrow(origin, r.Fx * forceScale, 0, 0, r.Fx, ArrowType.Force, 0));
             if (r.Fy != 0)
-                arrows.Add(new PreviewArrow(origin, 0, r.Fy * scale, 0, r.Fy, ArrowType.Force, 1));
+                arrows.Add(new PreviewArrow(origin, 0, r.Fy * forceScale, 0, r.Fy, ArrowType.Force, 1));
             if (r.Fz != 0)
-                arrows.Add(new PreviewArrow(origin, 0, 0, r.Fz * scale, r.Fz, ArrowType.Force, 2));
+                arrows.Add(new PreviewArrow(origin, 0, 0, r.Fz * forceScale, r.Fz, ArrowType.Force, 2));
 
             // Moment arcs (Mx, My, Mz)
             if (r.Mx != 0)
-                arrows.Add(new PreviewArrow(origin, r.Mx * scale, 0, 0, r.Mx, ArrowType.Moment, 0));
+                arrows.Add(new PreviewArrow(origin, r.Mx * momentScale, 0, 0, r.Mx, ArrowType.Moment, 0));
             if (r.My != 0)
-                arrows.Add(new PreviewArrow(origin, 0, r.My * scale, 0, r.My, ArrowType.Moment, 1));
+                arrows.Add(new PreviewArrow(origin, 0, r.My * momentScale, 0, r.My, ArrowType.Moment, 1));
             if (r.Mz != 0)
-                arrows.Add(new PreviewArrow(origin, 0, 0, r.Mz * scale, r.Mz, ArrowType.Moment, 2));
+                arrows.Add(new PreviewArrow(origin, 0, 0, r.Mz * momentScale, r.Mz, ArrowType.Moment, 2));
         }
 
-        return new PreviewArrowResult(arrows, scale);
+        return new PreviewArrowResult(arrows, forceScale, momentScale);
     }
 }
