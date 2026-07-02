@@ -151,6 +151,48 @@ public static class IconFactory
         return bmp;
     }
 
+    /// <summary>I-beam cross-section with query indicator (list lines).</summary>
+    public static Bitmap GetSectionProperties()
+    {
+        var bmp = Create();
+        using var g = Setup(bmp);
+        using var brush = B(Properties);
+        using var pen = P(Properties, 1.5f);
+        // I-beam shape (smaller, offset left)
+        g.FillRectangle(brush, 2, 4, 12, 2);   // top flange
+        g.FillRectangle(brush, 6, 6, 4, 8);    // web
+        g.FillRectangle(brush, 2, 14, 12, 2);  // bottom flange
+        // List lines (right side, indicating "query/list")
+        g.DrawLine(pen, 16, 6, 22, 6);
+        g.DrawLine(pen, 16, 10, 22, 10);
+        g.DrawLine(pen, 16, 14, 22, 14);
+        return bmp;
+    }
+
+    /// <summary>Material cube with query indicator (list lines).</summary>
+    public static Bitmap GetMaterialProperties()
+    {
+        var bmp = Create();
+        using var g = Setup(bmp);
+        using var pen = P(Properties, 1.5f);
+        using var brush = B(Properties);
+        // Small cube (offset left)
+        var top = new PointF[] { new(8, 3), new(15, 6), new(8, 9), new(1, 6) };
+        var left = new PointF[] { new(1, 6), new(8, 9), new(8, 16), new(1, 13) };
+        var right = new PointF[] { new(8, 9), new(15, 6), new(15, 13), new(8, 16) };
+        g.FillPolygon(B(Color.FromArgb(180, Properties.R, Properties.G, Properties.B)), top);
+        g.FillPolygon(brush, left);
+        g.FillPolygon(B(Color.FromArgb(120, Properties.R, Properties.G, Properties.B)), right);
+        g.DrawPolygon(pen, top);
+        g.DrawPolygon(pen, left);
+        g.DrawPolygon(pen, right);
+        // List lines (right side)
+        g.DrawLine(pen, 17, 6, 23, 6);
+        g.DrawLine(pen, 17, 10, 23, 10);
+        g.DrawLine(pen, 17, 14, 23, 14);
+        return bmp;
+    }
+
     // ═══════════════════════════════════════════════════════════════
     // STRUCTURE PANEL
     // ═══════════════════════════════════════════════════════════════
@@ -353,19 +395,135 @@ public static class IconFactory
     }
 
     /// <summary>Self-weight: gravity "g" with downward arrow.</summary>
+    /// <summary>Self-weight: apple (Newton's gravity).</summary>
     public static Bitmap SelfWeight()
+    {
+        var bmp = Create();
+        using var g = Setup(bmp);
+        using var pen = P(Loads, 1.5f);
+        using var brush = B(Loads);
+        // Stem
+        g.DrawLine(pen, 12, 2, 12, 6);
+        // Leaf
+        g.DrawArc(pen, 12, 1, 6, 5, 180, 90);
+        // Apple body (ellipse)
+        g.FillEllipse(brush, 5, 6, 14, 15);
+        g.DrawEllipse(pen, 5, 6, 14, 15);
+        return bmp;
+    }
+
+    /// <summary>Load case folder with list lines (query variant).</summary>
+    public static Bitmap GetLoadCases()
+    {
+        var bmp = Create();
+        using var g = Setup(bmp);
+        using var pen = P(Loads, 1.5f);
+        using var brush = B(Loads);
+        // Smaller folder tab (offset left)
+        g.FillRectangle(brush, 1, 5, 5, 3);
+        // Smaller folder body
+        g.DrawRectangle(pen, 1, 7, 13, 13);
+        g.FillRectangle(B(Color.FromArgb(60, Loads.R, Loads.G, Loads.B)), 2, 8, 12, 12);
+        // List lines (right side)
+        g.DrawLine(pen, 17, 9, 23, 9);
+        g.DrawLine(pen, 17, 13, 23, 13);
+        g.DrawLine(pen, 17, 17, 23, 17);
+        return bmp;
+    }
+
+    /// <summary>Self-weight apple with list lines (query variant).</summary>
+    public static Bitmap GetSelfWeightLoads()
+    {
+        var bmp = Create();
+        using var g = Setup(bmp);
+        using var pen = P(Loads, 1.5f);
+        using var brush = B(Loads);
+        // Stem
+        g.DrawLine(pen, 8, 3, 8, 6);
+        // Leaf
+        g.DrawArc(pen, 8, 2, 5, 4, 180, 90);
+        // Apple body (smaller, offset left)
+        g.FillEllipse(brush, 2, 6, 12, 14);
+        g.DrawEllipse(pen, 2, 6, 12, 14);
+        // List lines (right side)
+        g.DrawLine(pen, 17, 8, 23, 8);
+        g.DrawLine(pen, 17, 13, 23, 13);
+        g.DrawLine(pen, 17, 18, 23, 18);
+        return bmp;
+    }
+
+    /// <summary>Node load arrow with list lines (query variant).</summary>
+    public static Bitmap GetNodeLoads()
     {
         var bmp = Create();
         using var g = Setup(bmp);
         using var pen = P(Loads, 2f);
         using var brush = B(Loads);
-        // "g" letter
-        using var font = new Font("Arial", 11f, FontStyle.Bold);
-        g.DrawString("g", font, brush, 2, 1);
-        // Downward arrow
-        g.DrawLine(pen, 17, 6, 17, 18);
-        var head = new PointF[] { new(17, 22), new(14, 17), new(20, 17) };
+        // Arrow shaft (smaller, offset left)
+        g.DrawLine(pen, 7, 2, 7, 13);
+        // Arrow head
+        var head = new PointF[] { new(7, 17), new(4, 12), new(10, 12) };
         g.FillPolygon(brush, head);
+        // Node dot
+        g.FillEllipse(brush, 5, 17, 4, 4);
+        // List lines (right side)
+        g.DrawLine(pen, 16, 6, 22, 6);
+        g.DrawLine(pen, 16, 12, 22, 12);
+        g.DrawLine(pen, 16, 18, 22, 18);
+        return bmp;
+    }
+
+    /// <summary>Distributed load (UDL) with list lines (query variant for member loads).</summary>
+    public static Bitmap GetMemberLoads()
+    {
+        var bmp = Create();
+        using var g = Setup(bmp);
+        using var pen = P(Loads, 1.5f);
+        using var beamPen = P(Structure, 1.5f);
+        using var brush = B(Loads);
+        // Beam line (smaller, offset left)
+        g.DrawLine(beamPen, 1, 18, 14, 18);
+        // Top line of UDL
+        g.DrawLine(pen, 1, 5, 14, 5);
+        // Vertical arrows (fewer)
+        for (var x = 3; x <= 12; x += 4)
+        {
+            g.DrawLine(pen, x, 5, x, 15);
+            var head = new PointF[] { new(x, 17), new(x - 1.5f, 14), new(x + 1.5f, 14) };
+            g.FillPolygon(brush, head);
+        }
+
+        // List lines (right side)
+        g.DrawLine(pen, 17, 6, 23, 6);
+        g.DrawLine(pen, 17, 12, 23, 12);
+        g.DrawLine(pen, 17, 18, 23, 18);
+        return bmp;
+    }
+
+    /// <summary>Plate pressure arrows with list lines (query variant for plate loads).</summary>
+    public static Bitmap GetPlateLoads()
+    {
+        var bmp = Create();
+        using var g = Setup(bmp);
+        using var platePen = P(Structure, 1f);
+        using var loadPen = P(Loads, 1.5f);
+        using var loadBrush = B(Loads);
+        // Plate outline (smaller, offset left)
+        g.DrawLine(platePen, 1, 16, 14, 16);
+        g.DrawLine(platePen, 1, 16, 2, 20);
+        g.DrawLine(platePen, 14, 16, 13, 20);
+        // Pressure arrows
+        for (var x = 4; x <= 11; x += 4)
+        {
+            g.DrawLine(loadPen, x, 4, x, 13);
+            var head = new PointF[] { new(x, 15), new(x - 1.5f, 12), new(x + 1.5f, 12) };
+            g.FillPolygon(loadBrush, head);
+        }
+
+        // List lines (right side)
+        g.DrawLine(loadPen, 17, 6, 23, 6);
+        g.DrawLine(loadPen, 17, 12, 23, 12);
+        g.DrawLine(loadPen, 17, 18, 23, 18);
         return bmp;
     }
 
@@ -394,6 +552,30 @@ public static class IconFactory
         g.FillEllipse(brush, 18, 8, 4, 4);   // right-mid
         g.FillEllipse(brush, 2, 16, 4, 4);   // bottom-left
         g.FillEllipse(brush, 18, 16, 4, 4);  // bottom-right
+        return bmp;
+    }
+
+    /// <summary>Hero: Disassemble / exploded network of nodes with outward arrows.</summary>
+    public static Bitmap DisassembleModel()
+    {
+        var bmp = Create();
+        using var g = Setup(bmp);
+        using var pen = P(Model, 1.5f);
+        using var dashPen = P(Model, 1f);
+        dashPen.DashStyle = System.Drawing.Drawing2D.DashStyle.Dash;
+        using var brush = B(Model);
+        // Dashed edges (exploded/disassembled)
+        g.DrawLine(dashPen, 4, 18, 12, 4);
+        g.DrawLine(dashPen, 12, 4, 20, 18);
+        g.DrawLine(dashPen, 4, 18, 20, 18);
+        // Nodes
+        g.FillEllipse(brush, 10, 2, 4, 4);   // top
+        g.FillEllipse(brush, 2, 16, 4, 4);   // bottom-left
+        g.FillEllipse(brush, 18, 16, 4, 4);  // bottom-right
+        // Outward arrows
+        g.DrawLine(pen, 12, 4, 12, 1);
+        g.DrawLine(pen, 4, 18, 1, 21);
+        g.DrawLine(pen, 20, 18, 23, 21);
         return bmp;
     }
 

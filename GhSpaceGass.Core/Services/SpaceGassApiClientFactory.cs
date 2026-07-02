@@ -456,6 +456,114 @@ internal class SpaceGassApiWrapper : ISpaceGassApi
         return (await _client.Job.Headings.PatchAsync(headings, cancellationToken: ct).ConfigureAwait(false))!;
     }
 
+    public async Task<List<Node>> ListNodesAsync(CancellationToken ct = default)
+    {
+        return await _client.Job.Structure.Nodes.GetAsync(cancellationToken: ct).ConfigureAwait(false)
+               ?? new List<Node>();
+    }
+
+    public async Task<List<Member>> ListMembersAsync(CancellationToken ct = default)
+    {
+        return await _client.Job.Structure.Members.GetAsync(cancellationToken: ct).ConfigureAwait(false)
+               ?? new List<Member>();
+    }
+
+    public async Task<List<Section>> ListSectionsAsync(CancellationToken ct = default)
+    {
+        return await _client.Job.Structure.Sections.GetAsync(cancellationToken: ct).ConfigureAwait(false)
+               ?? new List<Section>();
+    }
+
+    public async Task<List<Material>> ListMaterialsAsync(CancellationToken ct = default)
+    {
+        return await _client.Job.Structure.Materials.GetAsync(cancellationToken: ct).ConfigureAwait(false)
+               ?? new List<Material>();
+    }
+
+    public async Task<List<Plate>> ListPlatesAsync(CancellationToken ct = default)
+    {
+        return await _client.Job.Structure.Plates.GetAsync(cancellationToken: ct).ConfigureAwait(false)
+               ?? new List<Plate>();
+    }
+
+    public async Task<List<LoadCase>> ListLoadCasesAsync(CancellationToken ct = default)
+    {
+        return await _client.Job.Loads.LoadCases.GetAsync(cancellationToken: ct).ConfigureAwait(false)
+               ?? new List<LoadCase>();
+    }
+
+    public async Task<List<LoadCategory>> ListLoadCategoriesAsync(CancellationToken ct = default)
+    {
+        return await _client.Job.Loads.LoadCategories.GetAsync(cancellationToken: ct).ConfigureAwait(false)
+               ?? new List<LoadCategory>();
+    }
+
+    public async Task<List<LoadCaseGroup>> ListLoadCaseGroupsAsync(CancellationToken ct = default)
+    {
+        return await _client.Job.Loads.LoadCaseGroups.GetAsync(cancellationToken: ct).ConfigureAwait(false)
+               ?? new List<LoadCaseGroup>();
+    }
+
+    public async Task<List<SelfWeightLoad>> ListSelfWeightLoadsAsync(CancellationToken ct = default)
+    {
+        return await _client.Job.Loads.SelfWeightLoads.GetAsync(cancellationToken: ct).ConfigureAwait(false)
+               ?? new List<SelfWeightLoad>();
+    }
+
+    public async Task<List<NodeLoad>> ListNodeLoadsAsync(CancellationToken ct = default)
+    {
+        return await _client.Job.Loads.NodeLoads.GetAsync(cancellationToken: ct).ConfigureAwait(false)
+               ?? new List<NodeLoad>();
+    }
+
+    public async Task<List<LumpedMassLoad>> ListLumpedMassLoadsAsync(CancellationToken ct = default)
+    {
+        return await _client.Job.Loads.LumpedMassLoads.GetAsync(cancellationToken: ct).ConfigureAwait(false)
+               ?? new List<LumpedMassLoad>();
+    }
+
+    public async Task<List<PrescribedDisplacement>> ListPrescribedDisplacementsAsync(CancellationToken ct = default)
+    {
+        return await _client.Job.Loads.NodeDisplacements.GetAsync(cancellationToken: ct).ConfigureAwait(false)
+               ?? new List<PrescribedDisplacement>();
+    }
+
+    public async Task<List<MemberConcentratedLoad>> ListMemberConcentratedLoadsAsync(CancellationToken ct = default)
+    {
+        return await _client.Job.Loads.MemberConcentratedLoads.GetAsync(cancellationToken: ct).ConfigureAwait(false)
+               ?? new List<MemberConcentratedLoad>();
+    }
+
+    public async Task<List<MemberDistributedLoad>> ListMemberDistributedLoadsAsync(CancellationToken ct = default)
+    {
+        return await _client.Job.Loads.MemberDistributedLoads.GetAsync(cancellationToken: ct).ConfigureAwait(false)
+               ?? new List<MemberDistributedLoad>();
+    }
+
+    public async Task<List<MemberDistributedMoment>> ListMemberDistributedMomentsAsync(CancellationToken ct = default)
+    {
+        return await _client.Job.Loads.MemberDistributedMoments.GetAsync(cancellationToken: ct).ConfigureAwait(false)
+               ?? new List<MemberDistributedMoment>();
+    }
+
+    public async Task<List<MemberPrestressLoad>> ListMemberPrestressLoadsAsync(CancellationToken ct = default)
+    {
+        return await _client.Job.Loads.MemberPrestressLoads.GetAsync(cancellationToken: ct).ConfigureAwait(false)
+               ?? new List<MemberPrestressLoad>();
+    }
+
+    public async Task<List<ThermalLoad>> ListThermalLoadsAsync(CancellationToken ct = default)
+    {
+        return await _client.Job.Loads.ThermalLoads.GetAsync(cancellationToken: ct).ConfigureAwait(false)
+               ?? new List<ThermalLoad>();
+    }
+
+    public async Task<List<PlatePressureLoad>> ListPlatePressureLoadsAsync(CancellationToken ct = default)
+    {
+        return await _client.Job.Loads.PlatePressureLoads.GetAsync(cancellationToken: ct).ConfigureAwait(false)
+               ?? new List<PlatePressureLoad>();
+    }
+
     public void Dispose()
     {
     }

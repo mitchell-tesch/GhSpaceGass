@@ -153,6 +153,28 @@ internal interface ISpaceGassApi : IDisposable
     // ── Job Info ─────────────────────────────────────────────────────
     Task<JobStatus> GetFullJobStatusAsync(CancellationToken ct = default);
     Task<JobHeadings> UpdateHeadingsAsync(JobHeadingsUpdate headings, CancellationToken ct = default);
+
+    // ── Structure (list/query) ────────────────────────────────────────
+    Task<List<Node>> ListNodesAsync(CancellationToken ct = default);
+    Task<List<Member>> ListMembersAsync(CancellationToken ct = default);
+    Task<List<Section>> ListSectionsAsync(CancellationToken ct = default);
+    Task<List<Material>> ListMaterialsAsync(CancellationToken ct = default);
+    Task<List<Plate>> ListPlatesAsync(CancellationToken ct = default);
+
+    // ── Loads (list/query) ────────────────────────────────────────────
+    Task<List<LoadCase>> ListLoadCasesAsync(CancellationToken ct = default);
+    Task<List<LoadCategory>> ListLoadCategoriesAsync(CancellationToken ct = default);
+    Task<List<LoadCaseGroup>> ListLoadCaseGroupsAsync(CancellationToken ct = default);
+    Task<List<SelfWeightLoad>> ListSelfWeightLoadsAsync(CancellationToken ct = default);
+    Task<List<NodeLoad>> ListNodeLoadsAsync(CancellationToken ct = default);
+    Task<List<LumpedMassLoad>> ListLumpedMassLoadsAsync(CancellationToken ct = default);
+    Task<List<PrescribedDisplacement>> ListPrescribedDisplacementsAsync(CancellationToken ct = default);
+    Task<List<MemberConcentratedLoad>> ListMemberConcentratedLoadsAsync(CancellationToken ct = default);
+    Task<List<MemberDistributedLoad>> ListMemberDistributedLoadsAsync(CancellationToken ct = default);
+    Task<List<MemberDistributedMoment>> ListMemberDistributedMomentsAsync(CancellationToken ct = default);
+    Task<List<MemberPrestressLoad>> ListMemberPrestressLoadsAsync(CancellationToken ct = default);
+    Task<List<ThermalLoad>> ListThermalLoadsAsync(CancellationToken ct = default);
+    Task<List<PlatePressureLoad>> ListPlatePressureLoadsAsync(CancellationToken ct = default);
 }
 
 /// <summary>
