@@ -222,6 +222,36 @@ public class ReactionPreviewTests
     }
 
     [Fact]
+    public void Build_ZeroScale_DisablesPreview()
+    {
+        var reactions = new[]
+        {
+            new SgNodeReactionData(nodeId: 1, loadCaseId: 1,
+                fx: 100, fy: 0, fz: 0, mx: 0, my: 0, mz: 50)
+        };
+        var nodeMap = new Dictionary<int, SgPoint3D> { [1] = new(0, 0, 0) };
+
+        var result = ReactionPreviewBuilder.Build(reactions, nodeMap, 100.0, userScale: 0.0);
+
+        Assert.Empty(result.Arrows);
+    }
+
+    [Fact]
+    public void Build_NegativeScale_DisablesPreview()
+    {
+        var reactions = new[]
+        {
+            new SgNodeReactionData(nodeId: 1, loadCaseId: 1,
+                fx: 100, fy: 0, fz: 0, mx: 0, my: 0, mz: 0)
+        };
+        var nodeMap = new Dictionary<int, SgPoint3D> { [1] = new(0, 0, 0) };
+
+        var result = ReactionPreviewBuilder.Build(reactions, nodeMap, 100.0, userScale: -1.0);
+
+        Assert.Empty(result.Arrows);
+    }
+
+    [Fact]
     public void Build_UnmatchedNodeId_SkipsReaction()
     {
         var reactions = new[]

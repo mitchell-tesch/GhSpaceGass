@@ -81,15 +81,15 @@ public static class ReactionPreviewBuilder
     /// <param name="reactions">Reaction results to visualise.</param>
     /// <param name="nodeIdToPoint">Map of SpaceGass node ID → point location.</param>
     /// <param name="bboxDiagonal">Model bounding box diagonal for auto-scale.</param>
-    /// <param name="userScale">Optional user-provided scale override. Null = auto-scale.</param>
-    /// <returns>List of preview arrows and the computed scale factor.</returns>
+    /// <param name="userScale">Optional user-provided scale override. Null = auto-scale. Zero = preview disabled.</param>
+    /// <returns>List of preview arrows and the computed scale factors.</returns>
     public static PreviewArrowResult Build(
         IReadOnlyList<SgNodeReactionData> reactions,
         IReadOnlyDictionary<int, SgPoint3D> nodeIdToPoint,
         double bboxDiagonal,
         double? userScale)
     {
-        if (reactions.Count == 0)
+        if (reactions.Count == 0 || (userScale.HasValue && userScale.Value <= 0))
             return new PreviewArrowResult(new List<PreviewArrow>(), 1.0, 1.0);
 
         // Compute separate max magnitudes for forces and moments (different units)

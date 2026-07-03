@@ -58,7 +58,7 @@ public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsCompo
             GH_ParamAccess.list);
         _inScale = pManager.AddNumberParameter("Scale", "Sc",
             "Optional: scale factor for viewport preview arrows. " +
-            "When omitted, auto-scale is computed from model extents and max reaction magnitude (ADR-0009).",
+            "When omitted, auto-scale is computed (ADR-0009). Set to 0 to disable preview.",
             GH_ParamAccess.item);
         _inShowValues = pManager.AddBooleanParameter("Show Values", "V",
             "When true, display numeric reaction values adjacent to each arrow.",
@@ -78,7 +78,7 @@ public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsCompo
             "Node IDs, branched by load case.",
             GH_ParamAccess.tree);
         _outPoints = pManager.AddPointParameter("Node Points", "P",
-            "Reaction node locations, branched by load case.",
+            "Reaction node locations (first branch only — identical across load cases).",
             GH_ParamAccess.tree);
         _outFx = pManager.AddNumberParameter("Fx", "Fx",
             "Reaction force in global X, branched by load case.",
@@ -299,11 +299,11 @@ public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsCompo
             var scaleValue = 0.0;
             if (da.GetData(Parent._inScale, ref scaleValue))
             {
-                if (scaleValue <= 0)
+                if (scaleValue < 0)
                     AddRuntimeMessage(GH_RuntimeMessageLevel.Warning,
-                        "Scale must be > 0. Falling back to auto-scale.");
-                else
-                    UserScale = scaleValue;
+                        "Scale must be ≥ 0. Preview disabled.");
+
+                UserScale = scaleValue;
             }
 
             var showValues = false;
@@ -394,9 +394,10 @@ public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsCompo
                     path);
                 foreach (var r in group.OrderBy(r => r.NodeId))
                 {
-                    OutPoints.Append(
-                        idToPoint.TryGetValue(r.NodeId, out var pt) ? new GH_Point(pt) : new GH_Point(Point3d.Unset),
-                        path);
+                    if (i == 0)
+                        OutPoints.Append(
+                            idToPoint.TryGetValue(r.NodeId, out var pt) ? new GH_Point(pt) : new GH_Point(Point3d.Unset),
+                            path);
                     OutNodes.Append(new GH_Integer(r.NodeId), path);
                     OutFx.Append(new GH_Number(r.Fx), path);
                     OutFy.Append(new GH_Number(r.Fy), path);
