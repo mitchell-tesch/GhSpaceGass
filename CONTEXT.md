@@ -440,7 +440,13 @@ Viewport preview (when component preview enabled and Scale ≠ 0): Force arrows 
 Auto-scale formula: `(0.1 × modelBboxDiagonal) / maxMagnitude`, computed separately for forces and moments. Degenerate inputs (zero bbox or magnitude) default to scale = 1.0.
 Core: `PreviewScaleHelper` (reusable: `ComputeAutoScale`, `ComputeBboxDiagonal`), `ReactionPreviewBuilder.Build` (pure data → `PreviewArrowResult` with `List<PreviewArrow>` + `ForceScale` + `MomentScale`; returns empty when userScale ≤ 0), `PreviewArrow` model (Origin, Dx/Dy/Dz, Magnitude, ArrowType, Axis), `ArrowType` enum (Force/Moment). 686 passing unit tests total (23 new).
 
-- [ ] **Slice 34** — Results viewport preview — node displacement vectors
+- [x] **Slice 34** — Results viewport preview — node displacement vectors
+
+**Delivered (Slice 34):** Updated existing component + one new Core model.
+`Get Node Displacements` (`SpaceGass > Results`, async — same GUID): Two new optional inputs: Scale (number, nickname "Sc" — auto-scale when omitted, 0=preview off, <0=warning+preview off), Show Values (bool, default false, nickname "V" — displays resultant displacement magnitude √(Tx²+Ty²+Tz²) in "G4" format at vector tip). `IsPreviewCapable = true`. `ClippingBox` expanded. Description updated. Node Points output on first branch only (identical across load cases). Node IDs on all branches.
+Viewport preview (when enabled and Scale ≠ 0): One combined displacement vector per node from original location to `original + (Tx, Ty, Tz) × scale`. Rotations (Rx, Ry, Rz) not drawn — data outputs only. Colour: Magenta (200,0,200), distinct from reaction arrows. Line weight: 2px, arrowhead at tip. Zero-displacement nodes skipped. Auto-scale uses resultant magnitude.
+Core: `DisplacementPreviewBuilder.Build` (reuses `PreviewScaleHelper`, `PreviewArrow` with Axis=-1 for displacement colour, `ArrowType.Force` for straight vector). All existing outputs, filters, warnings, status unchanged. 698 passing unit tests total (12 new).
+
 - [ ] **Slice 35** — Results viewport preview — member displaced shape
 - [ ] **Slice 36** — Results viewport preview — member force diagrams
 - [ ] **Slice 37** — Add a component for the query of Steel Design Results - List Steel Member Check Summary

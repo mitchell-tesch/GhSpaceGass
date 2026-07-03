@@ -19,9 +19,9 @@ namespace GhSpaceGass.Components.Results;
 
 public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsComponent>
 {
-    private static readonly Color ColorX = Color.FromArgb(255, 0, 0);
-    private static readonly Color ColorY = Color.FromArgb(0, 150, 0);
-    private static readonly Color ColorZ = Color.FromArgb(0, 0, 255);
+    private static readonly Color ColorX = Color.FromArgb(244, 67, 54);
+    private static readonly Color ColorY = Color.FromArgb(76, 175, 80);
+    private static readonly Color ColorZ = Color.FromArgb(33, 150, 243);
 
     private int _inModel, _inPoints, _inLoadCases, _inScale, _inShowValues;
     private int _outPoints, _outFx, _outFy, _outFz, _outMx, _outMy, _outMz, _outLoadCases, _outNodes, _outWarnings, _outStatus;
