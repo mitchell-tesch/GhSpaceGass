@@ -7,11 +7,12 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using GhSpaceGass.Async;
 using GhSpaceGass.Core.Models;
+using GhSpaceGass.Core.Models.Visuals;
+using GhSpaceGass.Helpers;
 using GhSpaceGass.Types;
 using Grasshopper.Kernel;
 using Grasshopper.Kernel.Data;
 using Grasshopper.Kernel.Types;
-using Rhino.Display;
 using Rhino.Geometry;
 using GhSpaceGass.Core.Services;
 
@@ -19,7 +20,7 @@ namespace GhSpaceGass.Components.Results;
 
 public class GetNodeDisplacementsComponent : GH_AsyncComponent<GetNodeDisplacementsComponent>
 {
-    private static readonly Color DisplacementColor = Color.FromArgb(200, 0, 200);
+    private static readonly Color DisplacementColor = Color.FromArgb(156, 39, 176);
 
     private int _inLoadCases;
     private int _inModel;
@@ -65,11 +66,11 @@ public class GetNodeDisplacementsComponent : GH_AsyncComponent<GetNodeDisplaceme
         _inLoadCases = pManager.AddTextParameter("Load Cases", "LC",
             "Optional: filter displacements to these load case names only.",
             GH_ParamAccess.list);
-        _inScale = pManager.AddNumberParameter("Scale", "Sc",
+        _inScale = pManager.AddNumberParameter("Visual Scale", "VSc",
             "Optional: scale factor for viewport preview vectors. " +
             "When omitted, auto-scale is computed (ADR-0009). Set to 0 to disable preview.",
             GH_ParamAccess.item);
-        _inShowValues = pManager.AddBooleanParameter("Show Values", "V",
+        _inShowValues = pManager.AddBooleanParameter("Show Values?", "SV?",
             "When true, display resultant displacement magnitude adjacent to each vector.",
             GH_ParamAccess.item, false);
 
@@ -127,11 +128,9 @@ public class GetNodeDisplacementsComponent : GH_AsyncComponent<GetNodeDisplaceme
 
         foreach (var arrow in _previewArrows)
         {
-            var origin = new Point3d(arrow.Origin.X, arrow.Origin.Y, arrow.Origin.Z);
+            var origin = arrow.Origin.ToPoint3d();
             var tip = new Point3d(origin.X + arrow.Dx, origin.Y + arrow.Dy, origin.Z + arrow.Dz);
-            var line = new Line(origin, tip);
-            args.Display.DrawLine(line, DisplacementColor, 2);
-            DrawArrowHead(args.Display, origin, tip, DisplacementColor);
+            PreviewDrawHelper.DrawForceArrow(args.Display, origin, tip, DisplacementColor);
 
             if (_showValues)
                 args.Display.Draw2dText(
@@ -147,32 +146,12 @@ public class GetNodeDisplacementsComponent : GH_AsyncComponent<GetNodeDisplaceme
             var box = base.ClippingBox;
             foreach (var arrow in _previewArrows)
             {
-                var origin = new Point3d(arrow.Origin.X, arrow.Origin.Y, arrow.Origin.Z);
+                var origin = arrow.Origin.ToPoint3d();
                 box.Union(origin);
                 box.Union(new Point3d(origin.X + arrow.Dx, origin.Y + arrow.Dy, origin.Z + arrow.Dz));
             }
             return box;
         }
-    }
-
-    private static void DrawArrowHead(DisplayPipeline display, Point3d from, Point3d tip, Color color)
-    {
-        var dir = tip - from;
-        var length = dir.Length;
-        if (length < 1e-10) return;
-
-        var headLength = length * 0.15;
-        dir.Unitize();
-
-        var perp = Math.Abs(dir.Z) < 0.9
-            ? Vector3d.CrossProduct(dir, Vector3d.ZAxis)
-            : Vector3d.CrossProduct(dir, Vector3d.XAxis);
-        perp.Unitize();
-
-        var headWidth = headLength * 0.4;
-        var basePoint = tip - dir * headLength;
-        display.DrawLine(new Line(tip, basePoint + perp * headWidth), color, 2);
-        display.DrawLine(new Line(tip, basePoint - perp * headWidth), color, 2);
     }
 
     // ── Worker ────────────────────────────────────────────────────
@@ -313,13 +292,9 @@ public class GetNodeDisplacementsComponent : GH_AsyncComponent<GetNodeDisplaceme
 
             var idToPoint = new Dictionary<int, Point3d>();
             foreach (var kvp in InputModel.NodeMap)
-                idToPoint[kvp.Value] = new Point3d(kvp.Key.X, kvp.Key.Y, kvp.Key.Z);
+                idToPoint[kvp.Value] = kvp.Key.ToPoint3d();
 
-            var idToLcName = new Dictionary<int, string>();
-            foreach (var kvp in InputModel.LoadCaseMap)
-                idToLcName[kvp.Value] = kvp.Key;
-            foreach (var kvp in InputModel.CombinationLoadCaseMap)
-                idToLcName[kvp.Value] = kvp.Key;
+            var idToLcName = InputModel.BuildLoadCaseIdToNameMap();
 
             var grouped = result.Displacements
                 .GroupBy(d => d.LoadCaseId)

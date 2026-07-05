@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using GhSpaceGass.Async;
 using GhSpaceGass.Core.Models;
+using GhSpaceGass.Core.Models.Visuals;
 using GhSpaceGass.Helpers;
 using GhSpaceGass.Types;
 using Grasshopper.Kernel;
@@ -19,10 +20,24 @@ namespace GhSpaceGass.Components.Results;
 
 public class GetMemberForcesComponent : GH_AsyncComponent<GetMemberForcesComponent>
 {
+    // Per-component colours: Fx=Brown, Fy=Orange, Fz=DarkOrange, Mx=Teal, My=DarkPurple, Mz=Purple
+    private static readonly Color[] ComponentColors =
+    {
+        Color.FromArgb(233, 30, 99),   // Fx - Pink
+        Color.FromArgb(255, 152, 0),   // Fy - Orange
+        Color.FromArgb(200, 117, 0),   // Fz - Dark Orange
+        Color.FromArgb(0, 150, 136),   // Mx - Teal
+        Color.FromArgb(74, 40, 135),   // My - Dark Purple
+        Color.FromArgb(103, 58, 183)   // Mz - Purple
+    };
+
     private int _inLoadCases;
     private int _inMembers;
     private int _inMode;
     private int _inModel;
+    private int _inVisual;
+    private int _inScale;
+    private int _inShowValues;
     
     private int _outFx, _outFy, _outFz;
     private int _outLines;
@@ -32,12 +47,26 @@ public class GetMemberForcesComponent : GH_AsyncComponent<GetMemberForcesCompone
     private int _outNodes;
     private int _outPoints;
     private int _outStations;
+    private int _outStatus;
     private int _outWarnings;
+
+    // Preview state
+    private List<PreviewDiagramGeometry> _previewDiagrams = new();
+    private bool _showValues;
+
+    private sealed record PreviewDiagramGeometry(
+        Polyline Outline,
+        Point3d[] BasePoints,
+        Point3d[] DiagramPoints,
+        Color Color,
+        double[] StationValues,
+        int[] ExtremaIndices);
 
     public GetMemberForcesComponent()
         : base("SG Member Forces", "sgMemberForces",
             "Query member force results from a completed SpaceGass analysis. " +
-            "Supports end forces and intermediate station forces.",
+            "Supports end forces and intermediate station forces. " +
+            "Draws force diagrams in the viewport when in Intermediate mode and preview is enabled.",
             "SpaceGass", "8 | Results")
     {
         BaseWorker = new GetMemberForcesWorker(this);
@@ -46,6 +75,7 @@ public class GetMemberForcesComponent : GH_AsyncComponent<GetMemberForcesCompone
     public override GH_Exposure Exposure => GH_Exposure.secondary;
     protected override Bitmap Icon => Icons.IconFactory.MemberForces();
     public override Guid ComponentGuid => new("A9DB1524-BAE6-4EBA-B0EF-93DA9090D0DF");
+    public override bool IsPreviewCapable => true;
 
     protected override void RegisterInputParams(GH_InputParamManager pManager)
     {
@@ -60,14 +90,28 @@ public class GetMemberForcesComponent : GH_AsyncComponent<GetMemberForcesCompone
             "Optional: filter forces to these load case names only.",
             GH_ParamAccess.list);
         _inMode = pManager.AddParameter(
-            new Param_SgIntegerOption("Mode", ValueListHelper.ForceModeOptions, defaultValue: 0, autoCreate: true),
+            new Param_SgIntegerOption("Mode", ValueListHelper.ForceModeOptions, defaultValue: 1, autoCreate: true),
             "Mode", "Mo",
             "End Forces=0 (forces at each member end), Intermediate=1 (forces at stations along member).\n" +
-            "Default: End Forces",
+            "Default: Intermediate",
             GH_ParamAccess.item);
+        _inVisual = pManager.AddParameter(
+            new Param_SgIntegerOption("Visual", ValueListHelper.MemberForceVisualOptions,
+                defaultValue: 5, autoCreate: true),
+            "Visual", "V",
+            "Force component to display as a diagram (Intermediate mode).\n" +
+            "Fx=0, Fy=1, Fz=2, Mx=3, My=4, Mz=5.\nDefault: Mz.",
+            GH_ParamAccess.item);
+        _inScale = pManager.AddNumberParameter("Visual Scale", "VSc",
+            "Scale factor for force diagram (Intermediate mode). Auto-scale when omitted. 0=off.",
+            GH_ParamAccess.item);
+        _inShowValues = pManager.AddBooleanParameter("Show Values?", "SV?",
+            "When true, display values at local extrema on the diagram.",
+            GH_ParamAccess.item, false);
 
         pManager[_inMembers].Optional = true;
         pManager[_inLoadCases].Optional = true;
+        pManager[_inScale].Optional = true;
     }
 
     protected override void RegisterOutputParams(GH_OutputParamManager pManager)
@@ -111,6 +155,8 @@ public class GetMemberForcesComponent : GH_AsyncComponent<GetMemberForcesCompone
         _outWarnings = pManager.AddTextParameter("Warnings", "W",
             "Warnings from the SpaceGass API query (multiline text).",
             GH_ParamAccess.item);
+        _outStatus = pManager.AddTextParameter("Status", "S",
+            "Query status summary.", GH_ParamAccess.item);
     }
 
     public override void AddedToDocument(GH_Document document)
@@ -124,6 +170,62 @@ public class GetMemberForcesComponent : GH_AsyncComponent<GetMemberForcesCompone
     {
         base.AppendAdditionalMenuItems(menu);
         Menu_AppendItem(menu, "Cancel", (_, _) => { RequestCancellation(); });
+    }
+
+    public override void DrawViewportWires(IGH_PreviewArgs args)
+    {
+        base.DrawViewportWires(args);
+        if (_previewDiagrams.Count == 0) return;
+
+        foreach (var diag in _previewDiagrams)
+        {
+            if (diag.DiagramPoints.Length < 2) continue;
+
+            args.Display.DrawPolyline(diag.Outline, diag.Color, 2);
+
+            // Fill lines from base to diagram
+            var pointCount = Math.Min(diag.BasePoints.Length, diag.DiagramPoints.Length);
+            for (var i = 1; i < pointCount - 1; i++)
+            {
+                args.Display.DrawLine(
+                    new Line(diag.BasePoints[i], diag.DiagramPoints[i]),
+                    diag.Color, 1);
+            }
+
+            // Closing lines
+            if (pointCount > 0)
+            {
+                args.Display.DrawLine(
+                    new Line(diag.BasePoints[0], diag.DiagramPoints[0]), diag.Color, 2);
+                if (pointCount > 1)
+                    args.Display.DrawLine(
+                        new Line(diag.BasePoints[pointCount - 1], diag.DiagramPoints[pointCount - 1]), diag.Color, 2);
+            }
+
+            if (_showValues && diag.ExtremaIndices.Length > 0)
+            {
+                foreach (var idx in diag.ExtremaIndices)
+                {
+                    if (idx >= diag.DiagramPoints.Length || idx >= diag.StationValues.Length) continue;
+                    var pt = diag.DiagramPoints[idx];
+                    args.Display.Draw2dText(
+                        diag.StationValues[idx].ToString("G4"),
+                        diag.Color, pt, false, 12);
+                }
+            }
+        }
+    }
+
+    public override BoundingBox ClippingBox
+    {
+        get
+        {
+            var box = base.ClippingBox;
+            foreach (var diag in _previewDiagrams)
+                foreach (var pt in diag.DiagramPoints)
+                    box.Union(pt);
+            return box;
+        }
     }
 
     // ── Worker ────────────────────────────────────────────────────
@@ -141,7 +243,10 @@ public class GetMemberForcesComponent : GH_AsyncComponent<GetMemberForcesCompone
         private SgModelData InputModel { get; set; }
         private List<(SgPoint3D Start, SgPoint3D End)> MemberFilter { get; set; }
         private List<string> LoadCaseFilter { get; set; }
-        private int Mode { get; set; } // 0 = End Forces, 1 = Intermediate
+        private int Mode { get; set; }
+        private int VisualIndex { get; set; } = 5;
+        private double? UserScale { get; set; }
+        private bool ShowValues { get; set; }
 
         private GH_Structure<GH_Line> OutLines { get; set; }
         private GH_Structure<GH_Point> OutPoints { get; set; }
@@ -157,6 +262,7 @@ public class GetMemberForcesComponent : GH_AsyncComponent<GetMemberForcesCompone
         private GH_Structure<GH_Integer> OutNodes { get; set; }
         private string OutWarningsText { get; set; }
         private string Status { get; set; } = string.Empty;
+        private List<(ForceDiagramData Data, Color Color)> PreviewDiagrams { get; set; } = new();
 
         public override WorkerInstance<GetMemberForcesComponent> Duplicate(
             string id, CancellationToken cancellationToken)
@@ -190,6 +296,23 @@ public class GetMemberForcesComponent : GH_AsyncComponent<GetMemberForcesCompone
             var mode = 0;
             da.GetData(Parent._inMode, ref mode);
             Mode = mode;
+
+            var visual = 5;
+            da.GetData(Parent._inVisual, ref visual);
+            VisualIndex = Math.Clamp(visual, -1, 5);
+
+            var scaleVal = 0.0;
+            if (da.GetData(Parent._inScale, ref scaleVal))
+            {
+                if (scaleVal < 0)
+                    AddRuntimeMessage(GH_RuntimeMessageLevel.Warning,
+                        "Scale must be ≥ 0. Preview disabled.");
+                UserScale = scaleVal;
+            }
+
+            var showValues = false;
+            da.GetData(Parent._inShowValues, ref showValues);
+            ShowValues = showValues;
         }
 
         public override async Task DoWork(Action<string, double> reportProgress, Action done)
@@ -261,6 +384,7 @@ public class GetMemberForcesComponent : GH_AsyncComponent<GetMemberForcesCompone
             if (result.EndForces.Count == 0)
             {
                 Parent.Message = "No end forces";
+                Status = "0 end forces queried.";
                 InitEmptyOutputs();
                 return;
             }
@@ -268,13 +392,9 @@ public class GetMemberForcesComponent : GH_AsyncComponent<GetMemberForcesCompone
             // Build reverse maps
             var idToPoint = new Dictionary<int, Point3d>();
             foreach (var kvp in InputModel.NodeMap)
-                idToPoint[kvp.Value] = new Point3d(kvp.Key.X, kvp.Key.Y, kvp.Key.Z);
+                idToPoint[kvp.Value] = kvp.Key.ToPoint3d();
 
-            var idToLcName = new Dictionary<int, string>();
-            foreach (var kvp in InputModel.LoadCaseMap)
-                idToLcName[kvp.Value] = kvp.Key;
-            foreach (var kvp in InputModel.CombinationLoadCaseMap)
-                idToLcName[kvp.Value] = kvp.Key;
+            var idToLcName = InputModel.BuildLoadCaseIdToNameMap();
 
             // Group by load case, then by member — two-level tree {load_case; member}
             var byLoadCase = result.EndForces
@@ -335,6 +455,7 @@ public class GetMemberForcesComponent : GH_AsyncComponent<GetMemberForcesCompone
             }
 
             Parent.Message = $"{result.EndForces.Count} end forces";
+            Status = $"{result.EndForces.Count} end forces queried.";
         }
 
         private async Task QueryIntermediateForcesAsync()
@@ -359,6 +480,7 @@ public class GetMemberForcesComponent : GH_AsyncComponent<GetMemberForcesCompone
             if (result.Forces.Count == 0)
             {
                 Parent.Message = "No intermediate forces";
+                Status = "0 intermediate forces queried.";
                 InitEmptyOutputs();
                 return;
             }
@@ -370,15 +492,11 @@ public class GetMemberForcesComponent : GH_AsyncComponent<GetMemberForcesCompone
                 var s = kvp.Value.Start;
                 var e = kvp.Value.End;
                 idToMemberLine[kvp.Key] = new Line(
-                    new Point3d(s.X, s.Y, s.Z),
-                    new Point3d(e.X, e.Y, e.Z));
+                    s.ToPoint3d(),
+                    e.ToPoint3d());
             }
 
-            var idToLcName = new Dictionary<int, string>();
-            foreach (var kvp in InputModel.LoadCaseMap)
-                idToLcName[kvp.Value] = kvp.Key;
-            foreach (var kvp in InputModel.CombinationLoadCaseMap)
-                idToLcName[kvp.Value] = kvp.Key;
+            var idToLcName = InputModel.BuildLoadCaseIdToNameMap();
 
             // Group by load case, then by member — two-level tree {load_case; member}
             var byLoadCase = result.Forces
@@ -439,6 +557,22 @@ public class GetMemberForcesComponent : GH_AsyncComponent<GetMemberForcesCompone
             }
 
             Parent.Message = $"{result.Forces.Count} intermediate forces";
+            Status = $"{result.Forces.Count} intermediate forces queried.";
+
+            // Build force diagram preview for selected component (Intermediate mode only)
+            if (VisualIndex >= 0)
+            {
+                var memberMapSg = new Dictionary<int, (SgPoint3D Start, SgPoint3D End)>();
+                foreach (var kvp in InputModel.MemberMap) memberMapSg[kvp.Key] = kvp.Value;
+                var bboxDiag = PreviewScaleHelper.ComputeBboxDiagonal(InputModel.NodeMap.Keys);
+                var diagramResult = ForceDiagramBuilder.BuildSingleComponent(
+                    result.Forces, memberMapSg, bboxDiag, VisualIndex, UserScale);
+
+                var color = ComponentColors[Math.Clamp(VisualIndex, 0, ComponentColors.Length - 1)];
+                PreviewDiagrams = diagramResult.Diagrams
+                    .Select(d => (d, color))
+                    .ToList();
+            }
         }
 
         public override void SetData(IGH_DataAccess da)
@@ -456,6 +590,23 @@ public class GetMemberForcesComponent : GH_AsyncComponent<GetMemberForcesCompone
             if (OutMembers != null) da.SetDataTree(Parent._outMembers, OutMembers);
             if (OutNodes != null) da.SetDataTree(Parent._outNodes, OutNodes);
             da.SetData(Parent._outWarnings, OutWarningsText ?? "");
+            da.SetData(Parent._outStatus, Status);
+
+            Parent._previewDiagrams = PreviewDiagrams
+                .Select(diagram =>
+                {
+                    var basePoints = diagram.Data.BasePoints.Select(p => p.ToPoint3d()).ToArray();
+                    var diagramPoints = diagram.Data.DiagramPoints.Select(p => p.ToPoint3d()).ToArray();
+                    return new PreviewDiagramGeometry(
+                        new Polyline(diagramPoints),
+                        basePoints,
+                        diagramPoints,
+                        diagram.Color,
+                        diagram.Data.StationValues.ToArray(),
+                        diagram.Data.ExtremaIndices.ToArray());
+                })
+                .ToList();
+            Parent._showValues = ShowValues;
         }
     }
 }

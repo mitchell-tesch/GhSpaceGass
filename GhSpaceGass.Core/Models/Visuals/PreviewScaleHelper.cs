@@ -1,4 +1,4 @@
-namespace GhSpaceGass.Core.Models;
+namespace GhSpaceGass.Core.Models.Visuals;
 
 /// <summary>
 ///     Shared helper for computing auto-scale factors for results viewport preview (ADR-0009).

@@ -1,4 +1,4 @@
-namespace GhSpaceGass.Core.Models;
+namespace GhSpaceGass.Core.Models.Visuals;
 
 /// <summary>
 ///     Builds preview arrow descriptors from node displacement data.

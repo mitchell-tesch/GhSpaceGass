@@ -7,11 +7,12 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using GhSpaceGass.Async;
 using GhSpaceGass.Core.Models;
+using GhSpaceGass.Core.Models.Visuals;
+using GhSpaceGass.Helpers;
 using GhSpaceGass.Types;
 using Grasshopper.Kernel;
 using Grasshopper.Kernel.Data;
 using Grasshopper.Kernel.Types;
-using Rhino.Display;
 using Rhino.Geometry;
 using GhSpaceGass.Core.Services;
 
@@ -56,11 +57,11 @@ public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsCompo
         _inLoadCases = pManager.AddTextParameter("Load Cases", "LC",
             "Optional: filter reactions to these load case names only.",
             GH_ParamAccess.list);
-        _inScale = pManager.AddNumberParameter("Scale", "Sc",
+        _inScale = pManager.AddNumberParameter("Visual Scale", "VSc",
             "Optional: scale factor for viewport preview arrows. " +
             "When omitted, auto-scale is computed (ADR-0009). Set to 0 to disable preview.",
             GH_ParamAccess.item);
-        _inShowValues = pManager.AddBooleanParameter("Show Values", "V",
+        _inShowValues = pManager.AddBooleanParameter("Show Values?", "SV?",
             "When true, display numeric reaction values adjacent to each arrow.",
             GH_ParamAccess.item, false);
         
@@ -118,21 +119,26 @@ public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsCompo
 
         foreach (var arrow in _previewArrows)
         {
-            var origin = new Point3d(arrow.Origin.X, arrow.Origin.Y, arrow.Origin.Z);
+            var origin = arrow.Origin.ToPoint3d();
             var color = GetAxisColor(arrow.Axis);
 
             if (arrow.Type == ArrowType.Force)
-                DrawForceArrow(args.Display, origin, arrow, color);
+            {
+                var tip = new Point3d(origin.X + arrow.Dx, origin.Y + arrow.Dy, origin.Z + arrow.Dz);
+                PreviewDrawHelper.DrawForceArrow(args.Display, origin, tip, color);
+            }
             else
-                DrawMomentArc(args.Display, origin, arrow, color);
+            {
+                PreviewDrawHelper.DrawMomentArc(args.Display, origin, arrow, color);
+            }
 
             if (_showValues)
             {
                 var tip = arrow.Type == ArrowType.Force
                     ? new Point3d(origin.X + arrow.Dx, origin.Y + arrow.Dy, origin.Z + arrow.Dz)
-                    : GetArcEndPoint(origin, arrow);
+                    : PreviewDrawHelper.GetMomentArcEndPoint(origin, arrow);
                 args.Display.Draw2dText(
-                    Math.Abs(arrow.Magnitude).ToString("G4"),
+                    arrow.Magnitude.ToString("G4"),
                     color, tip, false, 12);
             }
         }
@@ -145,7 +151,7 @@ public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsCompo
             var box = base.ClippingBox;
             foreach (var arrow in _previewArrows)
             {
-                var origin = new Point3d(arrow.Origin.X, arrow.Origin.Y, arrow.Origin.Z);
+                var origin = arrow.Origin.ToPoint3d();
                 box.Union(origin);
                 box.Union(new Point3d(origin.X + arrow.Dx, origin.Y + arrow.Dy, origin.Z + arrow.Dz));
             }
@@ -155,102 +161,6 @@ public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsCompo
 
     private static Color GetAxisColor(int axis) =>
         axis switch { 0 => ColorX, 1 => ColorY, _ => ColorZ };
-
-    private static void DrawForceArrow(DisplayPipeline display, Point3d origin, PreviewArrow arrow, Color color)
-    {
-        var tip = new Point3d(origin.X + arrow.Dx, origin.Y + arrow.Dy, origin.Z + arrow.Dz);
-        var line = new Line(origin, tip);
-        display.DrawLine(line, color, 2);
-        DrawArrowHead(display, origin, tip, color);
-    }
-
-    private static void DrawArrowHead(DisplayPipeline display, Point3d from, Point3d tip, Color color)
-    {
-        var dir = tip - from;
-        var length = dir.Length;
-        if (length < 1e-10) return;
-
-        var headLength = length * 0.15;
-        dir.Unitize();
-
-        // Find a perpendicular vector
-        var perp = Math.Abs(dir.Z) < 0.9
-            ? Vector3d.CrossProduct(dir, Vector3d.ZAxis)
-            : Vector3d.CrossProduct(dir, Vector3d.XAxis);
-        perp.Unitize();
-
-        var headWidth = headLength * 0.4;
-        var basePoint = tip - dir * headLength;
-        var wing1 = basePoint + perp * headWidth;
-        var wing2 = basePoint - perp * headWidth;
-
-        display.DrawLine(new Line(tip, wing1), color, 2);
-        display.DrawLine(new Line(tip, wing2), color, 2);
-    }
-
-    private static void DrawMomentArc(DisplayPipeline display, Point3d origin, PreviewArrow arrow, Color color)
-    {
-        var radius = Math.Sqrt(arrow.Dx * arrow.Dx + arrow.Dy * arrow.Dy + arrow.Dz * arrow.Dz);
-        if (radius < 1e-10) return;
-
-        // Determine arc plane normal from axis
-        var normal = arrow.Axis switch
-        {
-            0 => Vector3d.XAxis,
-            1 => Vector3d.YAxis,
-            _ => Vector3d.ZAxis
-        };
-
-        // Positive moment = counterclockwise (right-hand rule)
-        // Negative moment = clockwise → flip normal
-        var magnitude = arrow.Axis switch
-        {
-            0 => arrow.Dx,
-            1 => arrow.Dy,
-            _ => arrow.Dz
-        };
-        if (magnitude < 0) normal = -normal;
-
-        var plane = new Plane(origin, normal);
-        var arc = new Arc(plane, radius, Math.PI * 1.5); // 270°
-
-        display.DrawArc(arc, color, 2);
-
-        // Arrowhead at arc endpoint
-        var endPt = arc.EndPoint;
-        var tangent = arc.TangentAt(arc.AngleDomain.T1);
-        tangent.Unitize();
-        var headLength = radius * 0.2;
-        var headPerp = Vector3d.CrossProduct(tangent, normal);
-        headPerp.Unitize();
-        var headWidth = headLength * 0.4;
-        var basePoint = endPt - tangent * headLength;
-        display.DrawLine(new Line(endPt, basePoint + headPerp * headWidth), color, 2);
-        display.DrawLine(new Line(endPt, basePoint - headPerp * headWidth), color, 2);
-    }
-
-    private static Point3d GetArcEndPoint(Point3d origin, PreviewArrow arrow)
-    {
-        var radius = Math.Sqrt(arrow.Dx * arrow.Dx + arrow.Dy * arrow.Dy + arrow.Dz * arrow.Dz);
-        if (radius < 1e-10) return origin;
-
-        var normal = arrow.Axis switch
-        {
-            0 => Vector3d.XAxis,
-            1 => Vector3d.YAxis,
-            _ => Vector3d.ZAxis
-        };
-        var magnitude = arrow.Axis switch
-        {
-            0 => arrow.Dx,
-            1 => arrow.Dy,
-            _ => arrow.Dz
-        };
-        if (magnitude < 0) normal = -normal;
-        var plane = new Plane(origin, normal);
-        var arc = new Arc(plane, radius, Math.PI * 1.5);
-        return arc.EndPoint;
-    }
 
     private sealed class GetNodeReactionsWorker : WorkerInstance<GetNodeReactionsComponent>
     {
@@ -371,10 +281,8 @@ public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsCompo
             }
 
             var idToPoint = new Dictionary<int, Point3d>();
-            foreach (var kvp in InputModel.NodeMap) idToPoint[kvp.Value] = new Point3d(kvp.Key.X, kvp.Key.Y, kvp.Key.Z);
-            var idToLcName = new Dictionary<int, string>();
-            foreach (var kvp in InputModel.LoadCaseMap) idToLcName[kvp.Value] = kvp.Key;
-            foreach (var kvp in InputModel.CombinationLoadCaseMap) idToLcName[kvp.Value] = kvp.Key;
+            foreach (var kvp in InputModel.NodeMap) idToPoint[kvp.Value] = kvp.Key.ToPoint3d();
+            var idToLcName = InputModel.BuildLoadCaseIdToNameMap();
             var grouped = result.Reactions.GroupBy(r => r.LoadCaseId).OrderBy(g => g.Key).ToList();
             OutPoints = new GH_Structure<GH_Point>();
             OutFx = new GH_Structure<GH_Number>();

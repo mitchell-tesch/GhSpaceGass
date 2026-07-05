@@ -1,4 +1,4 @@
-namespace GhSpaceGass.Core.Models;
+namespace GhSpaceGass.Core.Models.Visuals;
 
 /// <summary>Type of preview arrow — force (straight) or moment (arc).</summary>
 public enum ArrowType

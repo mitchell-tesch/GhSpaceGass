@@ -1,4 +1,5 @@
 using GhSpaceGass.Core.Models;
+using GhSpaceGass.Core.Models.Visuals;
 using Xunit;
 
 namespace GhSpaceGass.Tests;

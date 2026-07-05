@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using GhSpaceGass.Async;
 using GhSpaceGass.Core.Models;
+using GhSpaceGass.Core.Models.Visuals;
+using GhSpaceGass.Helpers;
 using GhSpaceGass.Types;
 using Grasshopper.Kernel;
 using Grasshopper.Kernel.Data;
@@ -18,9 +20,13 @@ namespace GhSpaceGass.Components.Results;
 
 public class GetMemberDisplacementsComponent : GH_AsyncComponent<GetMemberDisplacementsComponent>
 {
+    private static readonly Color DisplacedShapeColor = Color.FromArgb(0, 188, 212);
+
     private int _inLoadCases;
     private int _inMembers;
     private int _inModel;
+    private int _inScale;
+    private int _inShowValues;
 
     private int _outLines;
     private int _outLoadCases;
@@ -31,10 +37,16 @@ public class GetMemberDisplacementsComponent : GH_AsyncComponent<GetMemberDispla
     private int _outWarnings;
     private int _outStatus;
 
+    // Preview state
+    private List<Polyline> _previewPolylines = new();
+    private List<double> _previewMaxDisplacements = new();
+    private bool _showValues;
+
     public GetMemberDisplacementsComponent()
         : base("SG Member Displacements", "sgMemberDisp",
             "Query intermediate member displacement results (global and local translations) " +
-            "from a completed SpaceGass analysis.",
+            "from a completed SpaceGass analysis. " +
+            "Draws displaced shape polylines in the viewport when preview is enabled.",
             "SpaceGass", "8 | Results")
     {
         BaseWorker = new GetMemberDisplacementsWorker(this);
@@ -43,6 +55,7 @@ public class GetMemberDisplacementsComponent : GH_AsyncComponent<GetMemberDispla
     public override GH_Exposure Exposure => GH_Exposure.secondary;
     protected override Bitmap Icon => Icons.IconFactory.MemberDisplacements();
     public override Guid ComponentGuid => new("5E830EB3-F118-417E-95B0-E0CA8484D8DC");
+    public override bool IsPreviewCapable => true;
 
     protected override void RegisterInputParams(GH_InputParamManager pManager)
     {
@@ -56,9 +69,17 @@ public class GetMemberDisplacementsComponent : GH_AsyncComponent<GetMemberDispla
         _inLoadCases = pManager.AddTextParameter("Load Cases", "LC",
             "Optional: filter displacements to these load case names only.",
             GH_ParamAccess.list);
+        _inScale = pManager.AddNumberParameter("Visual Scale", "VSc",
+            "Optional: scale factor for displaced shape preview. " +
+            "When omitted, auto-scale is computed (ADR-0009). Set to 0 to disable preview.",
+            GH_ParamAccess.item);
+        _inShowValues = pManager.AddBooleanParameter("Show Values?", "SV?",
+            "When true, display max resultant displacement per member at the polyline midpoint.",
+            GH_ParamAccess.item, true);
 
         pManager[_inMembers].Optional = true;
         pManager[_inLoadCases].Optional = true;
+        pManager[_inScale].Optional = true;
     }
 
     protected override void RegisterOutputParams(GH_OutputParamManager pManager)
@@ -70,7 +91,7 @@ public class GetMemberDisplacementsComponent : GH_AsyncComponent<GetMemberDispla
             "Member IDs, branched by {load_case; member}.",
             GH_ParamAccess.tree);
         _outLines = pManager.AddLineParameter("Member Lines", "MLns",
-            "Member geometry, branched by {load_case; member}.",
+            "Member geometry (first load case branch only — identical across load cases).",
             GH_ParamAccess.tree);
         _outStations = pManager.AddNumberParameter("Stations", "S",
             "Position along member, branched by {load_case; member}.",
@@ -106,6 +127,39 @@ public class GetMemberDisplacementsComponent : GH_AsyncComponent<GetMemberDispla
         Menu_AppendItem(menu, "Cancel", (_, _) => { RequestCancellation(); });
     }
 
+    public override void DrawViewportWires(IGH_PreviewArgs args)
+    {
+        base.DrawViewportWires(args);
+        if (_previewPolylines.Count == 0) return;
+
+        for (var i = 0; i < _previewPolylines.Count; i++)
+        {
+            var poly = _previewPolylines[i];
+            if (poly.Count < 2) continue;
+            args.Display.DrawPolyline(poly, DisplacedShapeColor, 2);
+
+            if (_showValues && i < _previewMaxDisplacements.Count)
+            {
+                var midPt = poly[poly.Count / 2];
+                args.Display.Draw2dText(
+                    _previewMaxDisplacements[i].ToString("G4"),
+                    DisplacedShapeColor, midPt, false, 12);
+            }
+        }
+    }
+
+    public override BoundingBox ClippingBox
+    {
+        get
+        {
+            var box = base.ClippingBox;
+            foreach (var poly in _previewPolylines)
+                foreach (var pt in poly)
+                    box.Union(pt);
+            return box;
+        }
+    }
+
     // ── Worker ────────────────────────────────────────────────────
 
     private sealed class GetMemberDisplacementsWorker : WorkerInstance<GetMemberDisplacementsComponent>
@@ -121,6 +175,8 @@ public class GetMemberDisplacementsComponent : GH_AsyncComponent<GetMemberDispla
         private SgModelData InputModel { get; set; }
         private List<(SgPoint3D Start, SgPoint3D End)> MemberFilter { get; set; }
         private List<string> LoadCaseFilter { get; set; }
+        private double? UserScale { get; set; }
+        private bool ShowValues { get; set; }
 
         private GH_Structure<GH_Line> OutLines { get; set; }
         private GH_Structure<GH_Number> OutStations { get; set; }
@@ -134,6 +190,8 @@ public class GetMemberDisplacementsComponent : GH_AsyncComponent<GetMemberDispla
         private GH_Structure<GH_Integer> OutMembers { get; set; }
         private string OutWarningsText { get; set; }
         private string Status { get; set; } = string.Empty;
+        private List<DisplacedMemberPolyline> PreviewPolylines { get; set; } = new();
+        private List<double> PreviewMaxDisplacements { get; set; } = new();
 
         public override WorkerInstance<GetMemberDisplacementsComponent> Duplicate(
             string id, CancellationToken cancellationToken)
@@ -163,6 +221,19 @@ public class GetMemberDisplacementsComponent : GH_AsyncComponent<GetMemberDispla
                     .Where(s => s?.Value != null)
                     .Select(s => s.Value)
                     .ToList();
+
+            var scaleValue = 0.0;
+            if (da.GetData(Parent._inScale, ref scaleValue))
+            {
+                if (scaleValue < 0)
+                    AddRuntimeMessage(GH_RuntimeMessageLevel.Warning,
+                        "Scale must be ≥ 0. Preview disabled.");
+                UserScale = scaleValue;
+            }
+
+            var showValues = false;
+            da.GetData(Parent._inShowValues, ref showValues);
+            ShowValues = showValues;
         }
 
         public override async Task DoWork(Action<string, double> reportProgress, Action done)
@@ -236,15 +307,11 @@ public class GetMemberDisplacementsComponent : GH_AsyncComponent<GetMemberDispla
                 var s = kvp.Value.Start;
                 var e = kvp.Value.End;
                 idToMemberLine[kvp.Key] = new Line(
-                    new Point3d(s.X, s.Y, s.Z),
-                    new Point3d(e.X, e.Y, e.Z));
+                    s.ToPoint3d(),
+                    e.ToPoint3d());
             }
 
-            var idToLcName = new Dictionary<int, string>();
-            foreach (var kvp in InputModel.LoadCaseMap)
-                idToLcName[kvp.Value] = kvp.Key;
-            foreach (var kvp in InputModel.CombinationLoadCaseMap)
-                idToLcName[kvp.Value] = kvp.Key;
+            var idToLcName = InputModel.BuildLoadCaseIdToNameMap();
 
             // Group by load case, then by member — two-level tree {load_case; member}
             var byLoadCase = result.Displacements
@@ -292,11 +359,12 @@ public class GetMemberDisplacementsComponent : GH_AsyncComponent<GetMemberDispla
                     var memberIdx = memberIndexMap[memberGroup.Key];
                     var path = new GH_Path(lcIdx, memberIdx);
 
-                    // One line and one member ID per branch
-                    OutLines.Append(
-                        idToMemberLine.TryGetValue(memberGroup.Key, out var memberLine)
-                            ? new GH_Line(memberLine)
-                            : new GH_Line(Line.Unset), path);
+                    // Lines on first load case branch only (geometry identical across load cases)
+                    if (lcIdx == 0)
+                        OutLines.Append(
+                            idToMemberLine.TryGetValue(memberGroup.Key, out var memberLine)
+                                ? new GH_Line(memberLine)
+                                : new GH_Line(Line.Unset), path);
                     OutMembers.Append(new GH_Integer(memberGroup.Key), path);
 
                     // Station results ordered by position along member (Location)
@@ -315,6 +383,18 @@ public class GetMemberDisplacementsComponent : GH_AsyncComponent<GetMemberDispla
 
             Parent.Message = $"{result.Displacements.Count} displacements";
             Status = $"{result.Displacements.Count} member displacements queried.";
+
+            // Build displaced shape preview
+            var memberMapSg = new Dictionary<int, (SgPoint3D Start, SgPoint3D End)>();
+            foreach (var kvp in InputModel.MemberMap) memberMapSg[kvp.Key] = kvp.Value;
+            var bboxDiag = PreviewScaleHelper.ComputeBboxDiagonal(InputModel.NodeMap.Keys);
+            var previewResult = DisplacedShapeBuilder.Build(
+                result.Displacements, memberMapSg, bboxDiag, UserScale);
+
+            PreviewPolylines = previewResult.Polylines;
+            PreviewMaxDisplacements = previewResult.Polylines
+                .Select(p => p.MaxDisplacement)
+                .ToList();
         }
 
         public override void SetData(IGH_DataAccess da)
@@ -331,6 +411,12 @@ public class GetMemberDisplacementsComponent : GH_AsyncComponent<GetMemberDispla
             if (OutMembers != null) da.SetDataTree(Parent._outMembers, OutMembers);
             da.SetData(Parent._outWarnings, OutWarningsText ?? "");
             da.SetData(Parent._outStatus, Status);
+
+            Parent._previewPolylines = PreviewPolylines
+                .Select(p => new Polyline(p.Points.Select(pt => pt.ToPoint3d()).ToList()))
+                .ToList();
+            Parent._previewMaxDisplacements = PreviewMaxDisplacements;
+            Parent._showValues = ShowValues;
         }
     }
 }

@@ -270,11 +270,7 @@ public class GetBucklingResultsComponent : GH_AsyncComponent<GetBucklingResultsC
             }
 
             // Build reverse ID→name map for load cases
-            var idToLcName = new Dictionary<int, string>();
-            foreach (var kvp in InputModel.LoadCaseMap)
-                idToLcName[kvp.Value] = kvp.Key;
-            foreach (var kvp in InputModel.CombinationLoadCaseMap)
-                idToLcName[kvp.Value] = kvp.Key;
+            var idToLcName = InputModel.BuildLoadCaseIdToNameMap();
 
             // Build reverse member ID→geometry map
             var idToMemberLine = new Dictionary<int, Line>();

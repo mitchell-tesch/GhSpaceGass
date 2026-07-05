@@ -54,6 +54,13 @@ public static class ValueListHelper
         new("End Forces", "0"), new("Intermediate", "1")
     };
 
+    public static readonly Option[] MemberForceVisualOptions =
+    {
+        new("None", "-1"),
+        new("Fx", "0"), new("Fy", "1"), new("Fz", "2"),
+        new("Mx", "3"), new("My", "4"), new("Mz", "5")
+    };
+
     // ── Load options ────────────────────────────────────────────────
 
     public static readonly Option[] PositionUnitsOptions =
@@ -149,6 +156,15 @@ public static class ValueListHelper
     public static readonly Option[] PlateForceModeOptions =
     {
         new("Element Forces", "0"), new("Nodal Forces", "1")
+    };
+
+    public static readonly Option[] PlateForceVisualOptions =
+    {
+        new("None", "-1"),
+        new("Fx", "0"), new("Fy", "1"), new("Fxy", "2"),
+        new("Mx", "3"), new("My", "4"), new("Mxy", "5"),
+        new("Vxz", "6"), new("Vyz", "7"),
+        new("Mx Top", "8"), new("Mx Btm", "9"), new("My Top", "10"), new("My Btm", "11")
     };
 
     // ── Assembly options ────────────────────────────────────────────

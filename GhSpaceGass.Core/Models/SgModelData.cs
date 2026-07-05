@@ -66,6 +66,14 @@ public class SgModelData
 
     /// <summary>Total number of thermal loads pushed to SpaceGass.</summary>
     public int ThermalLoadCount { get; set; }
+
+    public Dictionary<int, string> BuildLoadCaseIdToNameMap()
+    {
+        var map = new Dictionary<int, string>();
+        foreach (var kvp in LoadCaseMap) map[kvp.Value] = kvp.Key;
+        foreach (var kvp in CombinationLoadCaseMap) map[kvp.Value] = kvp.Key;
+        return map;
+    }
 }
 
 /// <summary>
