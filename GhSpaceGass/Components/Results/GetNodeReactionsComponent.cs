@@ -225,14 +225,14 @@ public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsCompo
         {
             if (InputModel == null)
             {
-                Parent.Message = "No model";
+                SetComponentMessage("No model");
                 if (!CancellationToken.IsCancellationRequested) done();
                 return;
             }
 
             try
             {
-                Parent.Message = "Querying...";
+                SetComponentMessage("Querying...");
                 await QueryAsync();
                 if (!CancellationToken.IsCancellationRequested) done();
             }
@@ -243,7 +243,7 @@ public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsCompo
             {
                 var message = ModelAssembler.FormatApiError(ex, "querying node reactions");
                 Status = $"Error: {message}";
-                Parent.Message = "Error";
+                SetComponentMessage("Error");
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Error, message);
                 if (!CancellationToken.IsCancellationRequested) done();
             }
@@ -256,7 +256,7 @@ public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsCompo
             {
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Warning,
                     "Not connected. Place a SpaceGass Connect component and set Connect? to true.");
-                Parent.Message = "Not connected";
+                SetComponentMessage("Not connected");
                 return;
             }
 
@@ -266,7 +266,7 @@ public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsCompo
             OutWarningsText = result.Warnings.Count > 0 ? string.Join(Environment.NewLine, result.Warnings) : "";
             if (result.Reactions.Count == 0)
             {
-                Parent.Message = "No reactions";
+                SetComponentMessage("No reactions");
                 Status = "0 node reactions queried.";
                 OutPoints = new GH_Structure<GH_Point>();
                 OutFx = new GH_Structure<GH_Number>();
@@ -316,7 +316,7 @@ public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsCompo
                 }
             }
 
-            Parent.Message = $"{result.Reactions.Count} reactions";
+            SetComponentMessage($"{result.Reactions.Count} reactions");
             Status = $"{result.Reactions.Count} node reactions queried.";
 
             // Build preview arrows from queried results

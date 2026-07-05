@@ -107,14 +107,9 @@ public abstract class GH_AsyncComponent<T> : GH_Component, IDisposable
 
     private void Done()
     {
-        Interlocked.Increment(ref _state);
-        if (_state == _workers.Count && _setData == 0)
+        var newState = Interlocked.Increment(ref _state);
+        if (newState == _workers.Count && Interlocked.CompareExchange(ref _setData, 1, 0) == 0)
         {
-            Interlocked.Exchange(ref _setData, 1);
-
-            // We need to reverse the workers list to set the outputs in the same order as the inputs.
-            _workers.Reverse();
-
             RhinoApp.InvokeOnUiThread(
                 (Action)
                 delegate { ExpireSolution(true); }
@@ -126,21 +121,26 @@ public abstract class GH_AsyncComponent<T> : GH_Component, IDisposable
     {
         if (_workers.Count == 0 || ProgressReports.Values.Count == 0) return;
 
+        string msg;
         if (_workers.Count == 1)
         {
-            Message = ProgressReports.Values.Last().ToString("0.00%");
+            msg = ProgressReports.Values.Last().ToString("0.00%");
         }
         else
         {
             double total = 0;
             foreach (var kvp in ProgressReports) total += kvp.Value;
 
-            Message = (total / _workers.Count).ToString("0.00%");
+            msg = (total / _workers.Count).ToString("0.00%");
         }
 
         RhinoApp.InvokeOnUiThread(
             (Action)
-            delegate { OnDisplayExpired(true); }
+            delegate
+            {
+                Message = msg;
+                OnDisplayExpired(true);
+            }
         );
     }
 
@@ -192,10 +192,10 @@ public abstract class GH_AsyncComponent<T> : GH_Component, IDisposable
             currentWorker.GetData(da, Params);
 
             var currentRun = new Task<Task>(
-                async () => { await currentWorker.DoWork(_reportProgress, Done).ConfigureAwait(true); },
+                async () => { await currentWorker.DoWork(_reportProgress, Done).ConfigureAwait(false); },
                 tokenSource.Token,
                 TaskCreationOptions
-            );
+            ).Unwrap();
 
             // Add the worker to our list
             _workers.Add(
@@ -215,7 +215,7 @@ public abstract class GH_AsyncComponent<T> : GH_Component, IDisposable
         if (_workers.Count > 0)
         {
             Interlocked.Decrement(ref _state);
-            var worker = _workers[_state].Instance;
+            var worker = _workers[_workers.Count - 1 - _state].Instance;
 
             // Replay pending runtime messages on the UI thread (survives GH message clear)
             foreach (var (level, msg) in worker.PendingMessages)

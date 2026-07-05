@@ -240,14 +240,14 @@ public class GetMemberDisplacementsComponent : GH_AsyncComponent<GetMemberDispla
         {
             if (InputModel == null)
             {
-                Parent.Message = "No model";
+                SetComponentMessage("No model");
                 if (!CancellationToken.IsCancellationRequested) done();
                 return;
             }
 
             try
             {
-                Parent.Message = "Querying...";
+                SetComponentMessage("Querying...");
                 await QueryDisplacementsAsync();
                 if (!CancellationToken.IsCancellationRequested) done();
             }
@@ -258,7 +258,7 @@ public class GetMemberDisplacementsComponent : GH_AsyncComponent<GetMemberDispla
             {
                 var message = ModelAssembler.FormatApiError(ex, "querying member displacements");
                 Status = $"Error: {message}";
-                Parent.Message = "Error";
+                SetComponentMessage("Error");
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Error, message);
                 if (!CancellationToken.IsCancellationRequested) done();
             }
@@ -271,7 +271,7 @@ public class GetMemberDisplacementsComponent : GH_AsyncComponent<GetMemberDispla
             {
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Warning,
                     "Not connected. Place a SpaceGass Connect component and set Connect? to true.");
-                Parent.Message = "Not connected";
+                SetComponentMessage("Not connected");
                 return;
             }
 
@@ -285,7 +285,7 @@ public class GetMemberDisplacementsComponent : GH_AsyncComponent<GetMemberDispla
 
             if (result.Displacements.Count == 0)
             {
-                Parent.Message = "No displacements";
+                SetComponentMessage("No displacements");
                 Status = "0 member displacements queried.";
                 OutLines = new GH_Structure<GH_Line>();
                 OutStations = new GH_Structure<GH_Number>();
@@ -381,7 +381,7 @@ public class GetMemberDisplacementsComponent : GH_AsyncComponent<GetMemberDispla
                 }
             }
 
-            Parent.Message = $"{result.Displacements.Count} displacements";
+            SetComponentMessage($"{result.Displacements.Count} displacements");
             Status = $"{result.Displacements.Count} member displacements queried.";
 
             // Build displaced shape preview

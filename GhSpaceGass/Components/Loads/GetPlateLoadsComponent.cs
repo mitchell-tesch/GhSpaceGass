@@ -132,10 +132,10 @@ public class GetPlateLoadsComponent : GH_AsyncComponent<GetPlateLoadsComponent>
         {
             try
             {
-                if (Model == null) { Status = "No model provided."; Parent.Message = "No model"; if (!CancellationToken.IsCancellationRequested) done(); return; }
-                Parent.Message = "Querying...";
+                if (Model == null) { Status = "No model provided."; SetComponentMessage("No model"); if (!CancellationToken.IsCancellationRequested) done(); return; }
+                SetComponentMessage("Querying...");
                 var session = SpaceGassSessionManager.Current;
-                if (session == null || !session.IsConnected) { Status = "Not connected."; Parent.Message = "Not connected"; if (!CancellationToken.IsCancellationRequested) done(); return; }
+                if (session == null || !session.IsConnected) { Status = "Not connected."; SetComponentMessage("Not connected"); if (!CancellationToken.IsCancellationRequested) done(); return; }
 
                 Result = await session.GetPlateLoadsDataAsync(Model, CancellationToken).ConfigureAwait(false);
 
@@ -143,7 +143,7 @@ public class GetPlateLoadsComponent : GH_AsyncComponent<GetPlateLoadsComponent>
                 foreach (var e in Result.PlateEntries) { pp += e.PressureLoads.Count; tl += e.ThermalLoads.Count; }
                 Status = $"{Result.PlateEntries.Count} plates: {pp} pressure, {tl} thermal.";
                 foreach (var w in Result.Warnings) { Status += $"\nWarning: {w}"; AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, w); }
-                Parent.Message = $"{Result.PlateEntries.Count} plates";
+                SetComponentMessage($"{Result.PlateEntries.Count} plates");
                 if (!CancellationToken.IsCancellationRequested) done();
             }
             catch (OperationCanceledException) when (CancellationToken.IsCancellationRequested) { }
@@ -151,7 +151,7 @@ public class GetPlateLoadsComponent : GH_AsyncComponent<GetPlateLoadsComponent>
             {
                 var message = ModelAssembler.FormatApiError(ex, "querying plate loads");
                 Status = $"Error: {message}";
-                Parent.Message = "Error";
+                SetComponentMessage("Error");
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Error, message);
                 if (!CancellationToken.IsCancellationRequested) done();
             }

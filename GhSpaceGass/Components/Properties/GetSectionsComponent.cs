@@ -139,17 +139,17 @@ public class GetSectionsComponent : GH_AsyncComponent<GetSectionsComponent>
                 if (Model == null)
                 {
                     Status = "No model provided.";
-                    Parent.Message = "No model";
+                    SetComponentMessage("No model");
                     if (!CancellationToken.IsCancellationRequested) done();
                     return;
                 }
 
-                Parent.Message = "Querying...";
+                SetComponentMessage("Querying...");
                 var session = SpaceGassSessionManager.Current;
                 if (session == null || !session.IsConnected)
                 {
                     Status = "Not connected.";
-                    Parent.Message = "Not connected";
+                    SetComponentMessage("Not connected");
                     if (!CancellationToken.IsCancellationRequested) done();
                     return;
                 }
@@ -163,7 +163,7 @@ public class GetSectionsComponent : GH_AsyncComponent<GetSectionsComponent>
                     AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, w);
                 }
 
-                Parent.Message = $"{Result.Sections.Count} sections";
+                SetComponentMessage($"{Result.Sections.Count} sections");
                 if (!CancellationToken.IsCancellationRequested) done();
             }
             catch (OperationCanceledException) when (CancellationToken.IsCancellationRequested) { }
@@ -171,7 +171,7 @@ public class GetSectionsComponent : GH_AsyncComponent<GetSectionsComponent>
             {
                 var message = ModelAssembler.FormatApiError(ex, "querying sections");
                 Status = $"Error: {message}";
-                Parent.Message = "Error";
+                SetComponentMessage("Error");
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Error, message);
                 if (!CancellationToken.IsCancellationRequested) done();
             }

@@ -94,17 +94,17 @@ public class GetSelfWeightLoadsComponent : GH_AsyncComponent<GetSelfWeightLoadsC
                 if (Model == null)
                 {
                     Status = "No model provided.";
-                    Parent.Message = "No model";
+                    SetComponentMessage("No model");
                     if (!CancellationToken.IsCancellationRequested) done();
                     return;
                 }
 
-                Parent.Message = "Querying...";
+                SetComponentMessage("Querying...");
                 var session = SpaceGassSessionManager.Current;
                 if (session == null || !session.IsConnected)
                 {
                     Status = "Not connected.";
-                    Parent.Message = "Not connected";
+                    SetComponentMessage("Not connected");
                     if (!CancellationToken.IsCancellationRequested) done();
                     return;
                 }
@@ -119,7 +119,7 @@ public class GetSelfWeightLoadsComponent : GH_AsyncComponent<GetSelfWeightLoadsC
                     AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, w);
                 }
 
-                Parent.Message = $"{Result.Loads.Count} self-weight loads";
+                SetComponentMessage($"{Result.Loads.Count} self-weight loads");
                 if (!CancellationToken.IsCancellationRequested) done();
             }
             catch (OperationCanceledException) when (CancellationToken.IsCancellationRequested) { }
@@ -127,7 +127,7 @@ public class GetSelfWeightLoadsComponent : GH_AsyncComponent<GetSelfWeightLoadsC
             {
                 var message = ModelAssembler.FormatApiError(ex, "querying self-weight loads");
                 Status = $"Error: {message}";
-                Parent.Message = "Error";
+                SetComponentMessage("Error");
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Error, message);
                 if (!CancellationToken.IsCancellationRequested) done();
             }

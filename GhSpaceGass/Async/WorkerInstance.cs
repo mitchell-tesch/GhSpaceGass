@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Grasshopper.Kernel;
+using Rhino;
 
 // ===========================================================
 // Using approach developed by Speckle Systems
@@ -39,6 +40,15 @@ public abstract class WorkerInstance<T>(T parent, string id, CancellationToken c
     protected void AddRuntimeMessage(GH_RuntimeMessageLevel level, string message)
     {
         PendingMessages.Add((level, message));
+    }
+
+    /// <summary>
+    ///     Sets the component's Message property (the small text below the component).
+    ///     Marshals to the UI thread so it is safe to call from DoWork.
+    /// </summary>
+    protected void SetComponentMessage(string message)
+    {
+        RhinoApp.InvokeOnUiThread((Action)(() => Parent.Message = message));
     }
 
     /// <summary>
