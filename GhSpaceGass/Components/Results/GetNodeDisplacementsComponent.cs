@@ -230,14 +230,14 @@ public class GetNodeDisplacementsComponent : GH_AsyncComponent<GetNodeDisplaceme
         {
             if (InputModel == null)
             {
-                Parent.Message = "No model";
+                SetComponentMessage("No model");
                 if (!CancellationToken.IsCancellationRequested) done();
                 return;
             }
 
             try
             {
-                Parent.Message = "Querying...";
+                SetComponentMessage("Querying...");
                 await QueryDisplacementsAsync();
                 if (!CancellationToken.IsCancellationRequested) done();
             }
@@ -248,7 +248,7 @@ public class GetNodeDisplacementsComponent : GH_AsyncComponent<GetNodeDisplaceme
             {
                 var message = ModelAssembler.FormatApiError(ex, "querying node displacements");
                 Status = $"Error: {message}";
-                Parent.Message = "Error";
+                SetComponentMessage("Error");
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Error, message);
                 if (!CancellationToken.IsCancellationRequested) done();
             }
@@ -261,7 +261,7 @@ public class GetNodeDisplacementsComponent : GH_AsyncComponent<GetNodeDisplaceme
             {
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Warning,
                     "Not connected. Place a SpaceGass Connect component and set Connect? to true.");
-                Parent.Message = "Not connected";
+                SetComponentMessage("Not connected");
                 return;
             }
 
@@ -276,7 +276,7 @@ public class GetNodeDisplacementsComponent : GH_AsyncComponent<GetNodeDisplaceme
 
             if (result.Displacements.Count == 0)
             {
-                Parent.Message = "No displacements";
+                SetComponentMessage("No displacements");
                 Status = "0 node displacements queried.";
                 OutPoints = new GH_Structure<GH_Point>();
                 OutTx = new GH_Structure<GH_Number>();
@@ -339,7 +339,7 @@ public class GetNodeDisplacementsComponent : GH_AsyncComponent<GetNodeDisplaceme
                 }
             }
 
-            Parent.Message = $"{result.Displacements.Count} displacements";
+            SetComponentMessage($"{result.Displacements.Count} displacements");
             Status = $"{result.Displacements.Count} node displacements queried.";
 
             // Build preview vectors from queried results

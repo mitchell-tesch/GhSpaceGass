@@ -150,16 +150,16 @@ public class JobInfoComponent : GH_AsyncComponent<JobInfoComponent>
             if (!RefreshEnabled)
             {
                 Status = "Idle. Set Refresh? to true to query job status.";
-                Parent.Message = "Idle";
+                SetComponentMessage("Idle");
                 if (!CancellationToken.IsCancellationRequested) done();
                 return;
             }
 
             try
             {
-                Parent.Message = "Querying...";
+                SetComponentMessage("Querying...");
                 await QueryJobInfoAsync();
-                Parent.Message = "Done";
+                SetComponentMessage("Done");
                 if (!CancellationToken.IsCancellationRequested) done();
             }
             catch (OperationCanceledException) when (CancellationToken.IsCancellationRequested)
@@ -170,7 +170,7 @@ public class JobInfoComponent : GH_AsyncComponent<JobInfoComponent>
             {
                 var message = ModelAssembler.FormatApiError(ex, "querying job info");
                 Status = $"Error: {message}";
-                Parent.Message = "Error";
+                SetComponentMessage("Error");
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Error, message);
                 if (!CancellationToken.IsCancellationRequested) done();
             }
@@ -182,7 +182,7 @@ public class JobInfoComponent : GH_AsyncComponent<JobInfoComponent>
             if (session == null || !session.IsConnected)
             {
                 Status = "Not connected. Place a SpaceGass Connect component and set Connect? to true.";
-                Parent.Message = "Not connected";
+                SetComponentMessage("Not connected");
                 return;
             }
 
@@ -194,7 +194,7 @@ public class JobInfoComponent : GH_AsyncComponent<JobInfoComponent>
 
             if (hasHeadingInput)
             {
-                Parent.Message = "Updating headings...";
+                SetComponentMessage("Updating headings...");
                 JobInfo = await session.UpdateHeadingsAsync(
                     InputHeading,
                     InputProjectHeading,

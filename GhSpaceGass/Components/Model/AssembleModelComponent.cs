@@ -269,14 +269,14 @@ public class AssembleModelComponent : GH_AsyncComponent<AssembleModelComponent>
             if (!AssembleEnabled)
             {
                 Status = "Assembly not triggered. Set Assemble? to true.";
-                Parent.Message = "Idle";
+                SetComponentMessage("Idle");
                 if (!CancellationToken.IsCancellationRequested) done();
                 return;
             }
 
             try
             {
-                Parent.Message = "Assembling...";
+                SetComponentMessage("Assembling...");
                 await AssembleAsync();
                 if (!CancellationToken.IsCancellationRequested) done();
             }
@@ -289,7 +289,7 @@ public class AssembleModelComponent : GH_AsyncComponent<AssembleModelComponent>
                 Model = null;
                 var message = ModelAssembler.FormatApiError(ex, "assembling model");
                 Status = $"Error: {message}";
-                Parent.Message = "Error";
+                SetComponentMessage("Error");
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Error, message);
                 if (!CancellationToken.IsCancellationRequested) done();
             }
@@ -301,7 +301,7 @@ public class AssembleModelComponent : GH_AsyncComponent<AssembleModelComponent>
             if (session == null || !session.IsConnected)
             {
                 Status = "Not connected. Place a SpaceGass Connect component and set Connect? to true.";
-                Parent.Message = "Not connected";
+                SetComponentMessage("Not connected");
                 return;
             }
 
@@ -361,7 +361,7 @@ public class AssembleModelComponent : GH_AsyncComponent<AssembleModelComponent>
 
             Status = string.Join("\n", statusParts);
             var messageLabel = AppendMode ? "Appended" : "Assembled";
-            Parent.Message = $"{messageLabel} ({Model.NodeMap.Count}N, {Model.MemberMap.Count}M)";
+            SetComponentMessage($"{messageLabel} ({Model.NodeMap.Count}N, {Model.MemberMap.Count}M)");
         }
 
         public override void SetData(IGH_DataAccess da)

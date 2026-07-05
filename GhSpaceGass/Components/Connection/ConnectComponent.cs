@@ -199,16 +199,16 @@ public class ConnectComponent : GH_AsyncComponent<ConnectComponent>
                 }
 
                 SpaceGassSessionManager.DisposeSession();
-                Parent.Message = "Disconnected";
+                SetComponentMessage("Disconnected");
                 if (!CancellationToken.IsCancellationRequested) done();
                 return;
             }
 
             try
             {
-                Parent.Message = "Connecting...";
+                SetComponentMessage("Connecting...");
                 await ConnectAsync();
-                Parent.Message = "Connected";
+                SetComponentMessage("Connected");
                 if (!CancellationToken.IsCancellationRequested) done();
             }
             catch (OperationCanceledException) when (CancellationToken.IsCancellationRequested)
@@ -220,7 +220,7 @@ public class ConnectComponent : GH_AsyncComponent<ConnectComponent>
                 IsConnected = false;
                 var message = ModelAssembler.FormatApiError(ex, "connecting");
                 Status = $"Error: {message}";
-                Parent.Message = "Error";
+                SetComponentMessage("Error");
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Error, message);
                 if (!CancellationToken.IsCancellationRequested) done();
             }
@@ -262,7 +262,7 @@ public class ConnectComponent : GH_AsyncComponent<ConnectComponent>
                 {
                     IsConnected = false;
                     Status = "Failed to connect.";
-                    Parent.Message = "Error";
+                    SetComponentMessage("Error");
                     return;
                 }
             }

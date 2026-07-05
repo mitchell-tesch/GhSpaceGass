@@ -319,14 +319,14 @@ public class GetMemberForcesComponent : GH_AsyncComponent<GetMemberForcesCompone
         {
             if (InputModel == null)
             {
-                Parent.Message = "No model";
+                SetComponentMessage("No model");
                 if (!CancellationToken.IsCancellationRequested) done();
                 return;
             }
 
             try
             {
-                Parent.Message = "Querying...";
+                SetComponentMessage("Querying...");
                 if (Mode == 1)
                     await QueryIntermediateForcesAsync();
                 else
@@ -340,7 +340,7 @@ public class GetMemberForcesComponent : GH_AsyncComponent<GetMemberForcesCompone
             {
                 var message = ModelAssembler.FormatApiError(ex, "querying member forces");
                 Status = $"Error: {message}";
-                Parent.Message = "Error";
+                SetComponentMessage("Error");
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Error, message);
                 if (!CancellationToken.IsCancellationRequested) done();
             }
@@ -369,7 +369,7 @@ public class GetMemberForcesComponent : GH_AsyncComponent<GetMemberForcesCompone
             {
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Warning,
                     "Not connected. Place a SpaceGass Connect component and set Connect? to true.");
-                Parent.Message = "Not connected";
+                SetComponentMessage("Not connected");
                 return;
             }
 
@@ -383,7 +383,7 @@ public class GetMemberForcesComponent : GH_AsyncComponent<GetMemberForcesCompone
 
             if (result.EndForces.Count == 0)
             {
-                Parent.Message = "No end forces";
+                SetComponentMessage("No end forces");
                 Status = "0 end forces queried.";
                 InitEmptyOutputs();
                 return;
@@ -454,7 +454,7 @@ public class GetMemberForcesComponent : GH_AsyncComponent<GetMemberForcesCompone
                 }
             }
 
-            Parent.Message = $"{result.EndForces.Count} end forces";
+            SetComponentMessage($"{result.EndForces.Count} end forces");
             Status = $"{result.EndForces.Count} end forces queried.";
         }
 
@@ -465,7 +465,7 @@ public class GetMemberForcesComponent : GH_AsyncComponent<GetMemberForcesCompone
             {
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Warning,
                     "Not connected. Place a SpaceGass Connect component and set Connect? to true.");
-                Parent.Message = "Not connected";
+                SetComponentMessage("Not connected");
                 return;
             }
 
@@ -479,7 +479,7 @@ public class GetMemberForcesComponent : GH_AsyncComponent<GetMemberForcesCompone
 
             if (result.Forces.Count == 0)
             {
-                Parent.Message = "No intermediate forces";
+                SetComponentMessage("No intermediate forces");
                 Status = "0 intermediate forces queried.";
                 InitEmptyOutputs();
                 return;
@@ -556,7 +556,7 @@ public class GetMemberForcesComponent : GH_AsyncComponent<GetMemberForcesCompone
                 }
             }
 
-            Parent.Message = $"{result.Forces.Count} intermediate forces";
+            SetComponentMessage($"{result.Forces.Count} intermediate forces");
             Status = $"{result.Forces.Count} intermediate forces queried.";
 
             // Build force diagram preview for selected component (Intermediate mode only)

@@ -42,6 +42,15 @@ public abstract class WorkerInstance<T>(T parent, string id, CancellationToken c
     }
 
     /// <summary>
+    ///     Sets the component's Message property (the small text below the component).
+    ///     Safe to call from DoWork — string reference assignment is atomic in .NET.
+    /// </summary>
+    protected void SetComponentMessage(string message)
+    {
+        Parent.Message = message;
+    }
+
+    /// <summary>
     ///     This is a "factory" method. It should return a fresh instance of this class, but with all the necessary state that
     ///     you might have passed on directly from your component.
     /// </summary>

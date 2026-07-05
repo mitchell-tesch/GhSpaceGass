@@ -204,14 +204,14 @@ public class GetBucklingResultsComponent : GH_AsyncComponent<GetBucklingResultsC
         {
             if (InputModel == null)
             {
-                Parent.Message = "No model";
+                SetComponentMessage("No model");
                 if (!CancellationToken.IsCancellationRequested) done();
                 return;
             }
 
             try
             {
-                Parent.Message = "Querying...";
+                SetComponentMessage("Querying...");
                 await QueryBucklingResultsAsync();
                 if (!CancellationToken.IsCancellationRequested) done();
             }
@@ -222,7 +222,7 @@ public class GetBucklingResultsComponent : GH_AsyncComponent<GetBucklingResultsC
             {
                 var message = ModelAssembler.FormatApiError(ex, "querying buckling results");
                 Status = $"Error: {message}";
-                Parent.Message = "Error";
+                SetComponentMessage("Error");
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Error, message);
                 if (!CancellationToken.IsCancellationRequested) done();
             }
@@ -235,7 +235,7 @@ public class GetBucklingResultsComponent : GH_AsyncComponent<GetBucklingResultsC
             {
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Warning,
                     "Not connected. Place a SpaceGass Connect component and set Connect? to true.");
-                Parent.Message = "Not connected";
+                SetComponentMessage("Not connected");
                 return;
             }
 
@@ -264,7 +264,7 @@ public class GetBucklingResultsComponent : GH_AsyncComponent<GetBucklingResultsC
 
             if (result.LoadFactors.Count == 0 && result.EffectiveLengths.Count == 0)
             {
-                Parent.Message = "No buckling results";
+                SetComponentMessage("No buckling results");
                 Status = "0 load factors, 0 effective lengths queried.";
                 return;
             }
@@ -386,7 +386,7 @@ public class GetBucklingResultsComponent : GH_AsyncComponent<GetBucklingResultsC
 
             var lfCount = result.LoadFactors.Count;
             var elCount = result.EffectiveLengths.Count;
-            Parent.Message = $"{lfCount} load factors, {elCount} eff. lengths";
+            SetComponentMessage($"{lfCount} load factors, {elCount} eff. lengths");
             Status = $"{lfCount} load factors, {elCount} effective lengths queried.";
         }
 

@@ -144,14 +144,14 @@ public class RunAnalysisComponent : GH_AsyncComponent<RunAnalysisComponent>
                 OutputModel = InputModel;
                 Success = false;
                 Status = "Analysis not triggered. Set Run? to true.";
-                Parent.Message = "Idle";
+                SetComponentMessage("Idle");
                 if (!CancellationToken.IsCancellationRequested) done();
                 return;
             }
 
             try
             {
-                Parent.Message = "Analysing...";
+                SetComponentMessage("Analysing...");
                 await RunAnalysisAsync();
                 if (!CancellationToken.IsCancellationRequested) done();
             }
@@ -165,7 +165,7 @@ public class RunAnalysisComponent : GH_AsyncComponent<RunAnalysisComponent>
                 Success = false;
                 var message = ModelAssembler.FormatApiError(ex, "running analysis");
                 Status = $"Error: {message}";
-                Parent.Message = "Error";
+                SetComponentMessage("Error");
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Error, message);
                 if (!CancellationToken.IsCancellationRequested) done();
             }
@@ -179,13 +179,13 @@ public class RunAnalysisComponent : GH_AsyncComponent<RunAnalysisComponent>
                 OutputModel = InputModel;
                 Success = false;
                 Status = "Not connected. Place a SpaceGass Connect component and set Connect? to true.";
-                Parent.Message = "Not connected";
+                SetComponentMessage("Not connected");
                 return;
             }
 
             var result = await session.RunAnalysisAsync(
                 AnalysisType, SettingsData,
-                msg => Parent.Message = msg,
+                msg => SetComponentMessage(msg),
                 CancellationToken).ConfigureAwait(false);
 
             OutputModel = InputModel;
@@ -195,14 +195,14 @@ public class RunAnalysisComponent : GH_AsyncComponent<RunAnalysisComponent>
             if (result.Succeeded)
             {
                 Status = $"Analysis completed in {result.ElapsedTime}. Run ID: {result.RunId}.";
-                Parent.Message = $"Completed ({result.ElapsedTime})";
+                SetComponentMessage($"Completed ({result.ElapsedTime})");
             }
             else
             {
                 Status = !string.IsNullOrEmpty(result.ErrorMessage)
                     ? $"Analysis failed: {result.ErrorMessage}"
                     : "Analysis did not complete successfully.";
-                Parent.Message = "Failed";
+                SetComponentMessage("Failed");
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Error, Status);
             }
 
