@@ -219,8 +219,9 @@ public class SpaceGassSession : IDisposable
             var status = await _api!.GetJobStatusAsync(ct).ConfigureAwait(false);
             return status.State?.IsOpen ?? false;
         }
-        catch
+        catch (Exception)
         {
+            // API errors (network, 404, deserialization) treated as "no job open"
             return false;
         }
     }
@@ -846,7 +847,8 @@ public class SpaceGassSession : IDisposable
             if (entries.TryGetValue(nodeId, out var existing))
                 return existing;
             if (!nodeIdToPoint.TryGetValue(nodeId, out var point))
-                return null!;
+                throw new InvalidOperationException(
+                    $"Node {nodeId} not found in model — ensure caller checks before calling GetOrCreateEntry.");
             var entry = new SgNodeLoadEntry(nodeId, point);
             entries[nodeId] = entry;
             return entry;
@@ -987,7 +989,8 @@ public class SpaceGassSession : IDisposable
             if (entries.TryGetValue(memberId, out var existing))
                 return existing;
             if (!model.MemberMap.TryGetValue(memberId, out var geom))
-                return null!;
+                throw new InvalidOperationException(
+                    $"Member {memberId} not found in model — ensure caller checks before calling GetOrCreateEntry.");
             var entry = new SgMemberLoadEntry(memberId, geom.Start, geom.End);
             entries[memberId] = entry;
             return entry;
@@ -1169,7 +1172,8 @@ public class SpaceGassSession : IDisposable
             if (entries.TryGetValue(plateId, out var existing))
                 return existing;
             if (!model.PlateMap.TryGetValue(plateId, out var corners))
-                return null!;
+                throw new InvalidOperationException(
+                    $"Plate {plateId} not found in model — ensure caller checks before calling GetOrCreateEntry.");
             var entry = new SgPlateLoadEntry(plateId, corners);
             entries[plateId] = entry;
             return entry;
@@ -1325,7 +1329,8 @@ public class SpaceGassSession : IDisposable
     private async Task<AnalysisRun> PollForAnalysisCompletionAsync(
         Guid runId, Action<string>? onProgress, CancellationToken ct)
     {
-        while (true)
+        var deadline = DateTime.UtcNow + TimeSpan.FromHours(1);
+        while (DateTime.UtcNow < deadline)
         {
             ct.ThrowIfCancellationRequested();
             await Task.Delay(AnalysisPollInterval, ct).ConfigureAwait(false);
@@ -1362,6 +1367,8 @@ public class SpaceGassSession : IDisposable
                 or AnalysisRunStatus.Cancelled)
                 return status;
         }
+
+        throw new TimeoutException("Analysis did not complete within the 1-hour safety timeout.");
     }
 
     /// <summary>
@@ -1845,23 +1852,30 @@ public class SpaceGassSession : IDisposable
         if (memberFilter == null || memberFilter.Count == 0)
             return null;
 
+        // Build a reverse lookup: (startNodeId, endNodeId) → memberId for O(1) resolution
+        var reverseLookup = new Dictionary<(int, int), int>();
+        foreach (var kvp in model.MemberMap)
+        {
+            if (model.NodeMap.TryGetValue(kvp.Value.Start, out var sId) &&
+                model.NodeMap.TryGetValue(kvp.Value.End, out var eId))
+                reverseLookup.TryAdd((sId, eId), kvp.Key);
+        }
+
         var memberIds = new List<int>();
         foreach (var (start, end) in memberFilter)
         {
-            var found = false;
-            foreach (var kvp in model.MemberMap)
-                if (kvp.Value.Start.IsCoincident(start, 0.001) &&
-                    kvp.Value.End.IsCoincident(end, 0.001))
-                {
-                    memberIds.Add(kvp.Key);
-                    found = true;
-                    break;
-                }
-
-            if (!found)
+            if (model.TryGetNodeId(start, out var startNodeId) &&
+                model.TryGetNodeId(end, out var endNodeId) &&
+                reverseLookup.TryGetValue((startNodeId, endNodeId), out var memberId))
+            {
+                memberIds.Add(memberId);
+            }
+            else
+            {
                 warnings.Add(
                     $"Filter member ({start.X:F3},{start.Y:F3},{start.Z:F3}) → ({end.X:F3},{end.Y:F3},{end.Z:F3}) " +
                     "does not match any model member — skipped.");
+            }
         }
 
         return memberIds.Count > 0 ? string.Join(",", memberIds) : null;

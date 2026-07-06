@@ -150,7 +150,7 @@ public class CreateMemberDistributedLoadComponent : GH_Component
         double mxStart = 0, myStart = 0, mzStart = 0;
         double mxEnd = 0, myEnd = 0, mzEnd = 0;
         double startPos = 0, endPos = 100;
-        int posUnits = 1, axes = 1;
+        int posUnits = 1, axes = 0;
 
         if (!da.GetData(_inLine, ref line)) return;
         if (!da.GetData(_inLoadCase, ref loadCaseGoo)) return;

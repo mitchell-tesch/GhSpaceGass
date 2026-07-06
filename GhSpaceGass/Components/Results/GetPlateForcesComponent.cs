@@ -624,12 +624,18 @@ public class GetPlateForcesComponent : GH_AsyncComponent<GetPlateForcesComponent
             da.SetData(Parent._outWarnings, OutWarningsText ?? "");
             da.SetData(Parent._outStatus, Status);
 
+            var materialCache = new Dictionary<int, DisplayMaterial>();
             Parent._previewContours = PreviewContours
-                .Select(c => (
-                    c.Mesh,
-                    new DisplayMaterial(c.FaceColor) { Transparency = 0.3 },
-                    c.Centroid.ToPoint3d(),
-                    c.Value))
+                .Select(c =>
+                {
+                    var argb = c.FaceColor.ToArgb();
+                    if (!materialCache.TryGetValue(argb, out var mat))
+                    {
+                        mat = new DisplayMaterial(c.FaceColor) { Transparency = 0.3 };
+                        materialCache[argb] = mat;
+                    }
+                    return (c.Mesh, mat, c.Centroid.ToPoint3d(), c.Value);
+                })
                 .ToList();
             Parent._showValues = ShowValues;
         }
