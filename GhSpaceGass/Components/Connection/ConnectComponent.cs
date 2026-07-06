@@ -39,6 +39,12 @@ public class ConnectComponent : GH_AsyncComponent<ConnectComponent>
     protected override Bitmap Icon => Icons.IconFactory.Connect();
     public override Guid ComponentGuid => new("8E88B539-1C3D-4DD8-8E26-B92B37399B4A");
 
+    public override void RemovedFromDocument(GH_Document document)
+    {
+        SpaceGassSessionManager.DisposeSession();
+        base.RemovedFromDocument(document);
+    }
+
     protected override void RegisterInputParams(GH_InputParamManager pManager)
     {
         _inConnect = pManager.AddBooleanParameter("Connect?", "C?",

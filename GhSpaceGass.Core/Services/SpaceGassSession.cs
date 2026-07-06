@@ -26,7 +26,7 @@ public class SpaceGassSession : IDisposable
     private readonly TimeSpan _startupTimeout;
 
     private ISpaceGassApi? _api;
-    private bool _disposed;
+    private int _disposed;
     private bool _weOwnProcess;
 
     /// <summary>
@@ -86,8 +86,7 @@ public class SpaceGassSession : IDisposable
     /// </summary>
     public void Dispose()
     {
-        if (_disposed) return;
-        _disposed = true;
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
 
         _api?.Dispose();
 
@@ -104,9 +103,11 @@ public class SpaceGassSession : IDisposable
     /// </summary>
     public async Task ConnectAsync(bool showConsole = false, CancellationToken ct = default)
     {
-        if (_disposed) throw new ObjectDisposedException(nameof(SpaceGassSession));
+        if (_disposed != 0) throw new ObjectDisposedException(nameof(SpaceGassSession));
 
-        // Create the API client first — its probe method knows the correct URL/path
+        // Create the API client first — its probe method knows the correct URL/path.
+        // Dispose any previous client to prevent leaking HttpClient/sockets on retry.
+        _api?.Dispose();
         _api = _apiFactory.Create(BaseUrl);
 
         // Step 1: Probe — is the service already running? (ADR-0004)
