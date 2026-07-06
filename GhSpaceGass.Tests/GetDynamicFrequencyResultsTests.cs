@@ -186,7 +186,7 @@ public class GetDynamicFrequencyResultsTests
             });
 
         var result = await session.GetDynamicFrequencyResultsAsync(model,
-            nodesFilter: new[] { new SgPoint3D(0, 0, 0), new SgPoint3D(10, 0, 0) });
+            nodesFilter: new[] { 1, 2 });
 
         Assert.Equal(2, result.ModeShapes.Count);
         await _api.Received(1).GetModeShapesAsync(null, "1,2", null, Arg.Any<CancellationToken>());
@@ -206,9 +206,9 @@ public class GetDynamicFrequencyResultsTests
             .Returns(new List<ModeShape>());
 
         var result = await session.GetDynamicFrequencyResultsAsync(model,
-            nodesFilter: new[] { new SgPoint3D(99, 99, 99) });
+            nodesFilter: new[] { 99 });
 
-        Assert.Contains(result.Warnings, w => w.Contains("does not match any model node"));
+        Assert.Contains(result.Warnings, w => w.Contains("node ID 99") && w.Contains("does not match any model node"));
     }
 
     // ── Null Mode skips natural frequency record ────────────────────
@@ -462,7 +462,7 @@ public class GetDynamicFrequencyResultsTests
 
         var result = await session.GetDynamicFrequencyResultsAsync(model,
             modesFilter: new[] { 1 },
-            nodesFilter: new[] { new SgPoint3D(10, 0, 0) });
+            nodesFilter: new[] { 2 });
 
         Assert.Single(result.NaturalFrequencies);
         Assert.Single(result.ModeShapes);

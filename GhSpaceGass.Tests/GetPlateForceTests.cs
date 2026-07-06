@@ -232,14 +232,8 @@ public class GetPlateForceTests
                 new() { Plate = 1, LoadCase = 1, Fx = 10 }
             });
 
-        var plateNodes = new[]
-        {
-            new SgPoint3D(0, 0, 0), new SgPoint3D(5, 0, 0),
-            new SgPoint3D(5, 5, 0), new SgPoint3D(0, 5, 0)
-        };
-
         var result = await session.GetPlateElementForcesAsync(model,
-            plateFilter: new[] { plateNodes });
+            plateFilter: new[] { 1 });
 
         Assert.Single(result.Forces);
     }

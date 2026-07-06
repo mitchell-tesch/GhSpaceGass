@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using GhSpaceGass.Core.Models;
 using SpaceGassApi.Models;
 
@@ -26,6 +28,7 @@ public class SpaceGassSession : IDisposable
     private readonly TimeSpan _startupTimeout;
 
     private ISpaceGassApi? _api;
+    private HttpClient? _pollClient;
     private int _disposed;
     private bool _weOwnProcess;
 
@@ -89,6 +92,7 @@ public class SpaceGassSession : IDisposable
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
 
         _api?.Dispose();
+        _pollClient?.Dispose();
 
         if (_weOwnProcess)
             _processManager.Kill();
@@ -150,6 +154,25 @@ public class SpaceGassSession : IDisposable
         }
 
         IsConnected = true;
+
+        // Create a dedicated HttpClient for analysis polling (bypasses Kiota pipeline
+        // which deadlocks in Grasshopper's SynchronizationContext).
+        // Only created when a real API service is available (skipped in unit tests).
+        _pollClient?.Dispose();
+        _pollClient = null;
+        try
+        {
+            var testClient = new HttpClient { BaseAddress = new Uri(BaseUrl) };
+            var probe = await testClient.GetAsync("/api/service/info", ct).ConfigureAwait(false);
+            if (probe.IsSuccessStatusCode)
+                _pollClient = testClient;
+            else
+                testClient.Dispose();
+        }
+        catch
+        {
+            // Non-fatal — fall back to Kiota API client for polling
+        }
 
         // Capture version info from the service
         try
@@ -1294,10 +1317,11 @@ public class SpaceGassSession : IDisposable
                 ModelAssembler.FormatApiError(ex, $"running {typeName} analysis"), ex);
         }
 
-        onProgress?.Invoke($"{typeName} analysis running...");
+        onProgress?.Invoke($"Analysing ({typeName})...");
 
-        // The API returns immediately with Queued/Running status.
-        // Poll until the analysis reaches a terminal state.
+        // The API status GET blocks server-side until the analysis completes or
+        // progress changes. For fast analyses, it returns with Completed status
+        // immediately — no intermediate progress is reported.
         if (run.RunId != null && !IsTerminalStatus(run.Status))
             run = await PollForAnalysisCompletionAsync(run.RunId.Value, onProgress, ct)
                 .ConfigureAwait(false);
@@ -1330,15 +1354,16 @@ public class SpaceGassSession : IDisposable
         Guid runId, Action<string>? onProgress, CancellationToken ct)
     {
         var deadline = DateTime.UtcNow + TimeSpan.FromHours(1);
+        var lastStep = -1;
         while (DateTime.UtcNow < deadline)
         {
             ct.ThrowIfCancellationRequested();
             await Task.Delay(AnalysisPollInterval, ct).ConfigureAwait(false);
 
-            AnalysisRun status;
+            AnalysisRun? status;
             try
             {
-                status = await _api!.GetAnalysisRunAsync(runId, ct).ConfigureAwait(false);
+                status = await PollAnalysisRunRawAsync(runId, ct).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -1350,16 +1375,40 @@ public class SpaceGassSession : IDisposable
                     ModelAssembler.FormatApiError(ex, "polling analysis status"), ex);
             }
 
+            // null = poll timed out, analysis still running — continue polling
+            if (status == null)
+                continue;
+
             if (status.Progress != null)
             {
                 var p = status.Progress;
-                var stepInfo = $"Step {p.CurrentStep}/{p.TotalSteps}";
-                var progressText = stepInfo;
+                var currentStep = p.CurrentStep ?? 0;
+                var stepInfo = $"Step {currentStep}/{p.TotalSteps}";
+
+                // Include step label when available
+                string? stepLabel = null;
+                if (currentStep != lastStep && p.StepLabels != null &&
+                    currentStep < p.StepLabels.Count &&
+                    !string.IsNullOrEmpty(p.StepLabels[currentStep]))
+                {
+                    stepLabel = p.StepLabels[currentStep];
+                    lastStep = currentStep;
+                }
+
+                var progressText = stepLabel != null
+                    ? $"{stepInfo}: {stepLabel}"
+                    : stepInfo;
+
                 if (p.IterationPercentage != null)
                     progressText += $" | {p.IterationPercentage}%";
                 if (p.LoadCaseStatus != null)
                     progressText += $" | {p.LoadCaseStatus}";
+
                 onProgress?.Invoke(progressText);
+            }
+            else
+            {
+                onProgress?.Invoke($"Analysing ({status.Status})...");
             }
 
             if (status.Status is AnalysisRunStatus.Completed
@@ -1369,6 +1418,43 @@ public class SpaceGassSession : IDisposable
         }
 
         throw new TimeoutException("Analysis did not complete within the 1-hour safety timeout.");
+    }
+
+    private static readonly JsonSerializerOptions PollJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        Converters = { new JsonStringEnumConverter() }
+    };
+
+    /// <summary>
+    ///     Polls analysis run status using a raw HttpClient GET, bypassing the Kiota
+    ///     pipeline. Uses a short timeout because the SpaceGass API holds the GET
+    ///     request open (long-polling) until a status change occurs.
+    ///     Falls back to the Kiota API client when no poll client is available (unit tests).
+    /// </summary>
+    private async Task<AnalysisRun?> PollAnalysisRunRawAsync(Guid runId, CancellationToken ct)
+    {
+        if (_pollClient == null)
+            return await _api!.GetAnalysisRunAsync(runId, ct).ConfigureAwait(false);
+
+        // Use a short timeout — the API may hold the request until status changes
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeoutCts.CancelAfter(TimeSpan.FromSeconds(5));
+
+        try
+        {
+            var response = await _pollClient.GetAsync($"/api/job/analysis/runs/{runId}", timeoutCts.Token)
+                .ConfigureAwait(false);
+            response.EnsureSuccessStatusCode();
+            var json = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+            return JsonSerializer.Deserialize<AnalysisRun>(json, PollJsonOptions);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            // Our 5-second timeout fired, not the caller's cancellation.
+            // Analysis is still running — return null to signal "no update yet"
+            return null;
+        }
     }
 
     /// <summary>
@@ -1383,11 +1469,11 @@ public class SpaceGassSession : IDisposable
 
     /// <summary>
     ///     Queries node reactions from the current job. Optionally filters by node
-    ///     locations and/or load case names. Returns mapped domain results with warnings.
+    ///     IDs and/or load case names. Returns mapped domain results with warnings.
     /// </summary>
     public async Task<SgNodeReactionsResult> GetNodeReactionsAsync(
         SgModelData model,
-        IReadOnlyList<SgPoint3D>? nodeFilter = null,
+        IReadOnlyList<int>? nodeFilter = null,
         IReadOnlyList<string>? loadCaseFilter = null,
         CancellationToken ct = default)
     {
@@ -1400,14 +1486,14 @@ public class SpaceGassSession : IDisposable
         string? nodesParam = null;
         if (nodeFilter != null && nodeFilter.Count > 0)
         {
-            var reverseNodeMap = new Dictionary<SgPoint3D, int>(model.NodeMap);
+            var validNodeIds = new HashSet<int>(model.NodeMap.Values);
             var nodeIds = new List<int>();
-            foreach (var pt in nodeFilter)
-                if (reverseNodeMap.TryGetValue(pt, out var nodeId))
+            foreach (var nodeId in nodeFilter)
+                if (validNodeIds.Contains(nodeId))
                     nodeIds.Add(nodeId);
                 else
                     result.Warnings.Add(
-                        $"Filter point ({pt.X:F3}, {pt.Y:F3}, {pt.Z:F3}) does not match any model node — skipped.");
+                        $"Filter node ID {nodeId} does not match any model node — skipped.");
 
             if (nodeIds.Count > 0)
                 nodesParam = string.Join(",", nodeIds);
@@ -1474,11 +1560,11 @@ public class SpaceGassSession : IDisposable
 
     /// <summary>
     ///     Queries node displacements from the current job. Optionally filters by node
-    ///     locations and/or load case names. Returns mapped domain results with warnings.
+    ///     IDs and/or load case names. Returns mapped domain results with warnings.
     /// </summary>
     public async Task<SgNodeDisplacementsResult> GetNodeDisplacementsAsync(
         SgModelData model,
-        IReadOnlyList<SgPoint3D>? nodeFilter = null,
+        IReadOnlyList<int>? nodeFilter = null,
         IReadOnlyList<string>? loadCaseFilter = null,
         CancellationToken ct = default)
     {
@@ -1491,13 +1577,14 @@ public class SpaceGassSession : IDisposable
         string? nodesParam = null;
         if (nodeFilter != null && nodeFilter.Count > 0)
         {
+            var validNodeIds = new HashSet<int>(model.NodeMap.Values);
             var nodeIds = new List<int>();
-            foreach (var pt in nodeFilter)
-                if (model.TryGetNodeId(pt, out var nodeId))
+            foreach (var nodeId in nodeFilter)
+                if (validNodeIds.Contains(nodeId))
                     nodeIds.Add(nodeId);
                 else
                     result.Warnings.Add(
-                        $"Filter point ({pt.X:F3}, {pt.Y:F3}, {pt.Z:F3}) does not match any model node — skipped.");
+                        $"Filter node ID {nodeId} does not match any model node — skipped.");
             if (nodeIds.Count > 0)
                 nodesParam = string.Join(",", nodeIds);
         }
@@ -1562,12 +1649,12 @@ public class SpaceGassSession : IDisposable
 
     /// <summary>
     ///     Queries member end forces from the current job. Optionally filters by member
-    ///     geometries and/or load case names. Returns flattened domain results (one record
+    ///     IDs and/or load case names. Returns flattened domain results (one record
     ///     per member end) with warnings.
     /// </summary>
     public async Task<SgMemberEndForcesResult> GetMemberEndForcesAsync(
         SgModelData model,
-        IReadOnlyList<(SgPoint3D Start, SgPoint3D End)>? memberFilter = null,
+        IReadOnlyList<int>? memberFilter = null,
         IReadOnlyList<string>? loadCaseFilter = null,
         CancellationToken ct = default)
     {
@@ -1577,31 +1664,7 @@ public class SpaceGassSession : IDisposable
         var result = new SgMemberEndForcesResult();
 
         // ── Resolve member filter → comma-separated IDs ───────────
-        string? membersParam = null;
-        if (memberFilter != null && memberFilter.Count > 0)
-        {
-            var memberIds = new List<int>();
-            foreach (var (start, end) in memberFilter)
-            {
-                var found = false;
-                foreach (var kvp in model.MemberMap)
-                    if (kvp.Value.Start.IsCoincident(start, 0.001) &&
-                        kvp.Value.End.IsCoincident(end, 0.001))
-                    {
-                        memberIds.Add(kvp.Key);
-                        found = true;
-                        break;
-                    }
-
-                if (!found)
-                    result.Warnings.Add(
-                        $"Filter member ({start.X:F3},{start.Y:F3},{start.Z:F3}) → ({end.X:F3},{end.Y:F3},{end.Z:F3}) " +
-                        "does not match any model member — skipped.");
-            }
-
-            if (memberIds.Count > 0)
-                membersParam = string.Join(",", memberIds);
-        }
+        var membersParam = ResolveMemberFilter(memberFilter, result.Warnings, model);
 
         // ── Resolve load case filter → comma-separated IDs ────────
         string? loadCasesParam = null;
@@ -1680,12 +1743,12 @@ public class SpaceGassSession : IDisposable
 
     /// <summary>
     ///     Queries intermediate member forces from the current job. Optionally filters by member
-    ///     geometries and/or load case names. Returns flattened domain results (one record per
+    ///     IDs and/or load case names. Returns flattened domain results (one record per
     ///     station per member) with warnings.
     /// </summary>
     public async Task<SgMemberIntermediateForcesResult> GetMemberIntermediateForcesAsync(
         SgModelData model,
-        IReadOnlyList<(SgPoint3D Start, SgPoint3D End)>? memberFilter = null,
+        IReadOnlyList<int>? memberFilter = null,
         IReadOnlyList<string>? loadCaseFilter = null,
         CancellationToken ct = default)
     {
@@ -1761,12 +1824,12 @@ public class SpaceGassSession : IDisposable
 
     /// <summary>
     ///     Queries intermediate member displacements from the current job. Optionally filters by
-    ///     member geometries and/or load case names. Returns global and local translations at
+    ///     member IDs and/or load case names. Returns global and local translations at
     ///     each station with warnings.
     /// </summary>
     public async Task<SgMemberDisplacementsResult> GetMemberDisplacementsAsync(
         SgModelData model,
-        IReadOnlyList<(SgPoint3D Start, SgPoint3D End)>? memberFilter = null,
+        IReadOnlyList<int>? memberFilter = null,
         IReadOnlyList<string>? loadCaseFilter = null,
         CancellationToken ct = default)
     {
@@ -1841,41 +1904,24 @@ public class SpaceGassSession : IDisposable
     }
 
     /// <summary>
-    ///     Resolves member geometry filter to comma-separated SpaceGass member IDs.
+    ///     Resolves member ID filter to comma-separated SpaceGass member IDs.
     ///     Adds warnings for unmatched members.
     /// </summary>
     private static string? ResolveMemberFilter(
-        IReadOnlyList<(SgPoint3D Start, SgPoint3D End)>? memberFilter,
+        IReadOnlyList<int>? memberFilter,
         List<string> warnings,
         SgModelData model)
     {
         if (memberFilter == null || memberFilter.Count == 0)
             return null;
 
-        // Build a reverse lookup: (startNodeId, endNodeId) → memberId for O(1) resolution
-        var reverseLookup = new Dictionary<(int, int), int>();
-        foreach (var kvp in model.MemberMap)
-        {
-            if (model.NodeMap.TryGetValue(kvp.Value.Start, out var sId) &&
-                model.NodeMap.TryGetValue(kvp.Value.End, out var eId))
-                reverseLookup.TryAdd((sId, eId), kvp.Key);
-        }
-
         var memberIds = new List<int>();
-        foreach (var (start, end) in memberFilter)
+        foreach (var memberId in memberFilter)
         {
-            if (model.TryGetNodeId(start, out var startNodeId) &&
-                model.TryGetNodeId(end, out var endNodeId) &&
-                reverseLookup.TryGetValue((startNodeId, endNodeId), out var memberId))
-            {
+            if (model.MemberMap.ContainsKey(memberId))
                 memberIds.Add(memberId);
-            }
             else
-            {
-                warnings.Add(
-                    $"Filter member ({start.X:F3},{start.Y:F3},{start.Z:F3}) → ({end.X:F3},{end.Y:F3},{end.Z:F3}) " +
-                    "does not match any model member — skipped.");
-            }
+                warnings.Add($"Filter member ID {memberId} does not match any model member — skipped.");
         }
 
         return memberIds.Count > 0 ? string.Join(",", memberIds) : null;
@@ -1908,11 +1954,11 @@ public class SpaceGassSession : IDisposable
 
     /// <summary>
     ///     Queries buckling results (load factors + effective lengths) from the current job.
-    ///     Optionally filters by member geometries, mode numbers, and/or load case names.
+    ///     Optionally filters by member IDs, mode numbers, and/or load case names.
     /// </summary>
     public async Task<SgBucklingResultsResult> GetBucklingResultsAsync(
         SgModelData model,
-        IReadOnlyList<(SgPoint3D Start, SgPoint3D End)>? memberFilter = null,
+        IReadOnlyList<int>? memberFilter = null,
         IReadOnlyList<int>? modesFilter = null,
         IReadOnlyList<string>? loadCaseFilter = null,
         CancellationToken ct = default)
@@ -2040,12 +2086,12 @@ public class SpaceGassSession : IDisposable
 
     /// <summary>
     ///     Queries dynamic frequency results (natural frequencies + mode shapes) from the current job.
-    ///     Optionally filters by mode numbers, node locations, and/or load case names.
+    ///     Optionally filters by mode numbers, node IDs, and/or load case names.
     /// </summary>
     public async Task<SgDynamicFrequencyResultsResult> GetDynamicFrequencyResultsAsync(
         SgModelData model,
         IReadOnlyList<int>? modesFilter = null,
-        IReadOnlyList<SgPoint3D>? nodesFilter = null,
+        IReadOnlyList<int>? nodesFilter = null,
         IReadOnlyList<string>? loadCaseFilter = null,
         CancellationToken ct = default)
     {
@@ -2063,13 +2109,14 @@ public class SpaceGassSession : IDisposable
         string? nodesParam = null;
         if (nodesFilter != null && nodesFilter.Count > 0)
         {
+            var validNodeIds = new HashSet<int>(model.NodeMap.Values);
             var nodeIds = new List<int>();
-            foreach (var pt in nodesFilter)
-                if (model.TryGetNodeId(pt, out var nodeId))
+            foreach (var nodeId in nodesFilter)
+                if (validNodeIds.Contains(nodeId))
                     nodeIds.Add(nodeId);
                 else
                     result.Warnings.Add(
-                        $"Filter point ({pt.X:F3}, {pt.Y:F3}, {pt.Z:F3}) does not match any model node — skipped.");
+                        $"Filter node ID {nodeId} does not match any model node — skipped.");
 
             if (nodeIds.Count > 0)
                 nodesParam = string.Join(",", nodeIds);
@@ -2192,7 +2239,7 @@ public class SpaceGassSession : IDisposable
     /// </summary>
     public async Task<SgPlateElementForcesResult> GetPlateElementForcesAsync(
         SgModelData model,
-        IReadOnlyList<SgPoint3D[]>? plateFilter = null,
+        IReadOnlyList<int>? plateFilter = null,
         IReadOnlyList<string>? loadCaseFilter = null,
         CancellationToken ct = default)
     {
@@ -2240,7 +2287,7 @@ public class SpaceGassSession : IDisposable
     /// </summary>
     public async Task<SgPlateNodalForcesResult> GetPlateNodalForcesAsync(
         SgModelData model,
-        IReadOnlyList<SgPoint3D[]>? plateFilter = null,
+        IReadOnlyList<int>? plateFilter = null,
         IReadOnlyList<string>? loadCaseFilter = null,
         CancellationToken ct = default)
     {
@@ -2303,39 +2350,19 @@ public class SpaceGassSession : IDisposable
     ///     Resolves plate corner node arrays to comma-separated SpaceGass plate IDs.
     /// </summary>
     private static string? ResolvePlateFilter(
-        IReadOnlyList<SgPoint3D[]>? plateFilter,
+        IReadOnlyList<int>? plateFilter,
         List<string> warnings,
         SgModelData model)
     {
         if (plateFilter == null || plateFilter.Count == 0) return null;
 
         var plateIds = new List<int>();
-        foreach (var plateNodes in plateFilter)
+        foreach (var plateId in plateFilter)
         {
-            var found = false;
-            foreach (var kvp in model.PlateMap)
-            {
-                if (kvp.Value.Length == plateNodes.Length)
-                {
-                    var match = true;
-                    for (var i = 0; i < plateNodes.Length; i++)
-                    {
-                        if (!kvp.Value[i].IsCoincident(plateNodes[i], 0.001))
-                        {
-                            match = false;
-                            break;
-                        }
-                    }
-                    if (match)
-                    {
-                        plateIds.Add(kvp.Key);
-                        found = true;
-                        break;
-                    }
-                }
-            }
-            if (!found)
-                warnings.Add("Filter plate does not match any model plate — skipped.");
+            if (model.PlateMap.ContainsKey(plateId))
+                plateIds.Add(plateId);
+            else
+                warnings.Add($"Filter plate ID {plateId} does not match any model plate — skipped.");
         }
 
         return plateIds.Count > 0 ? string.Join(",", plateIds) : null;

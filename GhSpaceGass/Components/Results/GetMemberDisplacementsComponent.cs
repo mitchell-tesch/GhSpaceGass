@@ -63,8 +63,8 @@ public class GetMemberDisplacementsComponent : GH_AsyncComponent<GetMemberDispla
             "Model", "M",
             "The assembled and analysed SpaceGass model.",
             GH_ParamAccess.item);
-        _inMembers = pManager.AddLineParameter("Members", "Mb",
-            "Optional: filter displacements to these member geometries only.",
+        _inMembers = pManager.AddIntegerParameter("Member IDs", "MIds",
+            "Optional: filter displacements to specific member IDs.",
             GH_ParamAccess.list);
         _inLoadCases = pManager.AddTextParameter("Load Cases", "LC",
             "Optional: filter displacements to these load case names only.",
@@ -173,7 +173,7 @@ public class GetMemberDisplacementsComponent : GH_AsyncComponent<GetMemberDispla
         }
 
         private SgModelData InputModel { get; set; }
-        private List<(SgPoint3D Start, SgPoint3D End)> MemberFilter { get; set; }
+        private List<int> MemberFilter { get; set; }
         private List<string> LoadCaseFilter { get; set; }
         private double? UserScale { get; set; }
         private bool ShowValues { get; set; }
@@ -206,14 +206,12 @@ public class GetMemberDisplacementsComponent : GH_AsyncComponent<GetMemberDispla
                 return;
             InputModel = modelGoo.Value;
 
-            var lines = new List<GH_Line>();
-            if (da.GetDataList(Parent._inMembers, lines) && lines.Count > 0)
-                MemberFilter = lines
-                    .Where(l => l?.Value != null)
-                    .Select(l => (
-                        new SgPoint3D(l.Value.From.X, l.Value.From.Y, l.Value.From.Z),
-                        new SgPoint3D(l.Value.To.X, l.Value.To.Y, l.Value.To.Z)))
-                    .ToList();
+            var memberIds = new List<GH_Integer>();
+            da.GetDataList(Parent._inMembers, memberIds);
+            MemberFilter = new List<int>();
+            foreach (var g in memberIds)
+                if (g != null)
+                    MemberFilter.Add(g.Value);
 
             var lcNames = new List<GH_String>();
             if (da.GetDataList(Parent._inLoadCases, lcNames) && lcNames.Count > 0)
@@ -387,7 +385,20 @@ public class GetMemberDisplacementsComponent : GH_AsyncComponent<GetMemberDispla
             // Build displaced shape preview
             var memberMapSg = new Dictionary<int, (SgPoint3D Start, SgPoint3D End)>();
             foreach (var kvp in InputModel.MemberMap) memberMapSg[kvp.Key] = kvp.Value;
-            var bboxDiag = PreviewScaleHelper.ComputeBboxDiagonal(InputModel.NodeMap.Keys);
+
+            // Compute bbox from members that have results (not the full model),
+            // so auto-scale is proportional to the visible members
+            var resultMemberIds = new HashSet<int>(result.Displacements.Select(d => d.MemberId));
+            var resultPoints = new List<SgPoint3D>();
+            foreach (var id in resultMemberIds)
+                if (InputModel.MemberMap.TryGetValue(id, out var endpoints))
+                {
+                    resultPoints.Add(endpoints.Start);
+                    resultPoints.Add(endpoints.End);
+                }
+            var bboxDiag = PreviewScaleHelper.ComputeBboxDiagonal(
+                resultPoints.Count > 0 ? resultPoints : (IEnumerable<SgPoint3D>)InputModel.NodeMap.Keys);
+
             var previewResult = DisplacedShapeBuilder.Build(
                 result.Displacements, memberMapSg, bboxDiag, UserScale);
 

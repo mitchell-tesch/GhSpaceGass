@@ -42,8 +42,8 @@ public abstract class WorkerInstance<T>(T parent, string id, CancellationToken c
     }
 
     /// <summary>
-    ///     Sets the component's Message property (the small text below the component).
-    ///     Safe to call from DoWork — string reference assignment is atomic in .NET.
+    ///     Sets the component's Message property (the small text below the component)
+    ///     and schedules a display refresh. Safe to call from DoWork.
     /// </summary>
     protected void SetComponentMessage(string message)
     {

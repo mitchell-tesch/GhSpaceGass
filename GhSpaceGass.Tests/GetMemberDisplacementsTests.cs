@@ -168,7 +168,7 @@ public class GetMemberDisplacementsTests
             });
 
         var result = await session.GetMemberDisplacementsAsync(model,
-            new[] { (new SgPoint3D(0, 0, 0), new SgPoint3D(10, 0, 0)) });
+            new[] { 1 });
 
         Assert.Single(result.Displacements);
         await _api.Received(1).GetMemberIntermediateDisplacementsAsync("1", null, Arg.Any<CancellationToken>());
@@ -186,7 +186,7 @@ public class GetMemberDisplacementsTests
             .Returns(new List<MemberIntermediateDisplacement>());
 
         var result = await session.GetMemberDisplacementsAsync(model,
-            new[] { (new SgPoint3D(0, 0, 0), new SgPoint3D(99, 0, 0)) });
+            new[] { 99 });
 
         Assert.Contains(result.Warnings, w => w.Contains("does not match any model member"));
     }
