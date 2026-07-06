@@ -317,14 +317,14 @@ public class GetPlateForcesComponent : GH_AsyncComponent<GetPlateForcesComponent
         {
             if (InputModel == null)
             {
-                Parent.Message = "No model";
+                SetComponentMessage("No model");
                 if (!CancellationToken.IsCancellationRequested) done();
                 return;
             }
 
             try
             {
-                Parent.Message = "Querying...";
+                SetComponentMessage("Querying...");
                 if (Mode == 1)
                     await QueryNodalForcesAsync();
                 else
@@ -336,7 +336,7 @@ public class GetPlateForcesComponent : GH_AsyncComponent<GetPlateForcesComponent
             {
                 var message = ModelAssembler.FormatApiError(ex, "querying plate forces");
                 Status = $"Error: {message}";
-                Parent.Message = "Error";
+                SetComponentMessage("Error");
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Error, message);
                 if (!CancellationToken.IsCancellationRequested) done();
             }
@@ -376,7 +376,7 @@ public class GetPlateForcesComponent : GH_AsyncComponent<GetPlateForcesComponent
             {
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Warning,
                     "Not connected. Place a SpaceGass Connect component and set Connect? to true.");
-                Parent.Message = "Not connected";
+                SetComponentMessage("Not connected");
                 return;
             }
 
@@ -392,7 +392,7 @@ public class GetPlateForcesComponent : GH_AsyncComponent<GetPlateForcesComponent
 
             if (result.Forces.Count == 0)
             {
-                Parent.Message = "No element forces";
+                SetComponentMessage("No element forces");
                 InitEmptyOutputs();
                 return;
             }
@@ -436,7 +436,7 @@ public class GetPlateForcesComponent : GH_AsyncComponent<GetPlateForcesComponent
                 }
             }
 
-            Parent.Message = $"{result.Forces.Count} element forces";
+            SetComponentMessage($"{result.Forces.Count} element forces");
             Status = $"{result.Forces.Count} element forces queried.";
 
             // Build plate contour preview (skip when Visual = None)
@@ -464,7 +464,7 @@ public class GetPlateForcesComponent : GH_AsyncComponent<GetPlateForcesComponent
             {
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Warning,
                     "Not connected. Place a SpaceGass Connect component and set Connect? to true.");
-                Parent.Message = "Not connected";
+                SetComponentMessage("Not connected");
                 return;
             }
 
@@ -480,7 +480,7 @@ public class GetPlateForcesComponent : GH_AsyncComponent<GetPlateForcesComponent
 
             if (result.Forces.Count == 0)
             {
-                Parent.Message = "No nodal forces";
+                SetComponentMessage("No nodal forces");
                 InitEmptyOutputs();
                 return;
             }
@@ -550,7 +550,7 @@ public class GetPlateForcesComponent : GH_AsyncComponent<GetPlateForcesComponent
                 }
             }
 
-            Parent.Message = $"{result.Forces.Count} nodal forces";
+            SetComponentMessage($"{result.Forces.Count} nodal forces");
             Status = $"{result.Forces.Count} nodal forces queried.";
         }
 

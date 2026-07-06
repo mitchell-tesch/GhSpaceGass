@@ -207,14 +207,14 @@ public class GetDynamicFrequencyResultsComponent : GH_AsyncComponent<GetDynamicF
         {
             if (InputModel == null)
             {
-                Parent.Message = "No model";
+                SetComponentMessage("No model");
                 if (!CancellationToken.IsCancellationRequested) done();
                 return;
             }
 
             try
             {
-                Parent.Message = "Querying...";
+                SetComponentMessage("Querying...");
                 await QueryDynamicFrequencyResultsAsync();
                 if (!CancellationToken.IsCancellationRequested) done();
             }
@@ -225,7 +225,7 @@ public class GetDynamicFrequencyResultsComponent : GH_AsyncComponent<GetDynamicF
             {
                 var message = ModelAssembler.FormatApiError(ex, "querying dynamic frequency results");
                 Status = $"Error: {message}";
-                Parent.Message = "Error";
+                SetComponentMessage("Error");
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Error, message);
                 if (!CancellationToken.IsCancellationRequested) done();
             }
@@ -238,7 +238,7 @@ public class GetDynamicFrequencyResultsComponent : GH_AsyncComponent<GetDynamicF
             {
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Warning,
                     "Not connected. Place a SpaceGass Connect component and set Connect? to true.");
-                Parent.Message = "Not connected";
+                SetComponentMessage("Not connected");
                 return;
             }
 
@@ -269,7 +269,7 @@ public class GetDynamicFrequencyResultsComponent : GH_AsyncComponent<GetDynamicF
 
             if (result.NaturalFrequencies.Count == 0 && result.ModeShapes.Count == 0)
             {
-                Parent.Message = "No dynamic frequency results";
+                SetComponentMessage("No dynamic frequency results");
                 Status = "0 frequencies, 0 mode shapes queried.";
                 return;
             }
@@ -378,7 +378,7 @@ public class GetDynamicFrequencyResultsComponent : GH_AsyncComponent<GetDynamicF
 
             var nfCount = result.NaturalFrequencies.Count;
             var msCount = result.ModeShapes.Count;
-            Parent.Message = $"{nfCount} frequencies, {msCount} mode shapes";
+            SetComponentMessage($"{nfCount} frequencies, {msCount} mode shapes");
             Status = $"{nfCount} frequencies, {msCount} mode shapes queried.";
         }
 

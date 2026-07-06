@@ -136,14 +136,14 @@ public class DisassembleModelComponent : GH_AsyncComponent<DisassembleModelCompo
             if (!DisassembleEnabled)
             {
                 Status = "Disassembly not triggered. Set Disassemble? to true.";
-                Parent.Message = "Idle";
+                SetComponentMessage("Idle");
                 if (!CancellationToken.IsCancellationRequested) done();
                 return;
             }
 
             try
             {
-                Parent.Message = "Disassembling...";
+                SetComponentMessage("Disassembling...");
                 await DisassembleAsync();
                 if (!CancellationToken.IsCancellationRequested) done();
             }
@@ -156,7 +156,7 @@ public class DisassembleModelComponent : GH_AsyncComponent<DisassembleModelCompo
                 Model = null;
                 var message = ModelAssembler.FormatApiError(ex, "disassembling model");
                 Status = $"Error: {message}";
-                Parent.Message = "Error";
+                SetComponentMessage("Error");
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Error, message);
                 if (!CancellationToken.IsCancellationRequested) done();
             }
@@ -168,7 +168,7 @@ public class DisassembleModelComponent : GH_AsyncComponent<DisassembleModelCompo
             if (session == null || !session.IsConnected)
             {
                 Status = "Not connected. Place a SpaceGass Connect component and set Connect? to true.";
-                Parent.Message = "Not connected";
+                SetComponentMessage("Not connected");
                 return;
             }
 
@@ -234,8 +234,8 @@ public class DisassembleModelComponent : GH_AsyncComponent<DisassembleModelCompo
             }
 
             Status = string.Join("\n", statusParts);
-            Parent.Message =
-                $"Disassembled ({result.Nodes.Count}N, {result.Members.Count}M, {result.Plates.Count}P)";
+            SetComponentMessage(
+                $"Disassembled ({result.Nodes.Count}N, {result.Members.Count}M, {result.Plates.Count}P)");
         }
 
         public override void SetData(IGH_DataAccess da)

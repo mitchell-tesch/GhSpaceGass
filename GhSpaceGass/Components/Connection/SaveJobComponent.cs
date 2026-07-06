@@ -110,16 +110,16 @@ public class SaveJobComponent : GH_AsyncComponent<SaveJobComponent>
         {
             if (!SaveEnabled)
             {
-                Parent.Message = "";
+                SetComponentMessage("");
                 if (!CancellationToken.IsCancellationRequested) done();
                 return;
             }
 
             try
             {
-                Parent.Message = "Saving...";
+                SetComponentMessage("Saving...");
                 await SaveAsync();
-                Parent.Message = "Saved";
+                SetComponentMessage("Saved");
                 if (!CancellationToken.IsCancellationRequested) done();
             }
             catch (OperationCanceledException) when (CancellationToken.IsCancellationRequested)
@@ -131,7 +131,7 @@ public class SaveJobComponent : GH_AsyncComponent<SaveJobComponent>
                 Saved = false;
                 var message = ModelAssembler.FormatApiError(ex, "saving job");
                 Status = $"Error: {message}";
-                Parent.Message = "Error";
+                SetComponentMessage("Error");
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Error, message);
                 if (!CancellationToken.IsCancellationRequested) done();
             }
@@ -144,7 +144,7 @@ public class SaveJobComponent : GH_AsyncComponent<SaveJobComponent>
             {
                 Saved = false;
                 Status = "Not connected. Place a SpaceGass Connect component and set Connect? to true.";
-                Parent.Message = "Not connected";
+                SetComponentMessage("Not connected");
                 return;
             }
 
