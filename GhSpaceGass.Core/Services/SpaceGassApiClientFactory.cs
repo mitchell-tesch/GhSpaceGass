@@ -1,3 +1,4 @@
+using System.Reflection;
 using SpaceGassApi;
 using SpaceGassApi.Models;
 
@@ -572,5 +573,20 @@ internal class SpaceGassApiWrapper : ISpaceGassApi
 
     public void Dispose()
     {
+        // SpaceGassApiClient extends BaseRequestBuilder which holds a non-public
+        // RequestAdapter property. The HttpClientRequestAdapter is IDisposable
+        // and owns the underlying HttpClient — disposing it prevents socket leaks.
+        try
+        {
+            var prop = typeof(Microsoft.Kiota.Abstractions.BaseRequestBuilder)
+                .GetProperty("RequestAdapter",
+                    BindingFlags.NonPublic | BindingFlags.Instance);
+            (prop?.GetValue(_client) as IDisposable)?.Dispose();
+        }
+        catch
+        {
+            // Non-fatal — if Kiota internals change, we degrade to the original
+            // no-op behaviour (GC will eventually collect the HttpClient).
+        }
     }
 }
