@@ -257,6 +257,13 @@ public abstract class GH_AsyncComponent<T> : GH_Component, IDisposable
         OnDisplayExpired(true);
     }
 
+    public override void RemovedFromDocument(GH_Document document)
+    {
+        RequestCancellation();
+        Dispose();
+        base.RemovedFromDocument(document);
+    }
+
     protected virtual void Dispose(bool disposing)
     {
         if (!_isDisposed)
