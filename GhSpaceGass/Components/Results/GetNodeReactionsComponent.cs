@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using GhSpaceGass.Async;
 using GhSpaceGass.Core.Models;
+using GhSpaceGass.Core.Models.Visuals;
+using GhSpaceGass.Helpers;
 using GhSpaceGass.Types;
 using Grasshopper.Kernel;
 using Grasshopper.Kernel.Data;
@@ -18,12 +20,21 @@ namespace GhSpaceGass.Components.Results;
 
 public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsComponent>
 {
-    private int _inModel, _inPoints, _inLoadCases;
+    private static readonly Color ColorX = Color.FromArgb(244, 67, 54);
+    private static readonly Color ColorY = Color.FromArgb(76, 175, 80);
+    private static readonly Color ColorZ = Color.FromArgb(33, 150, 243);
+
+    private int _inModel, _inPoints, _inLoadCases, _inScale, _inShowValues;
     private int _outPoints, _outFx, _outFy, _outFz, _outMx, _outMy, _outMz, _outLoadCases, _outNodes, _outWarnings, _outStatus;
+
+    // Preview state — populated during SetData, drawn in DrawViewportWires
+    private List<PreviewArrow> _previewArrows = new();
+    private bool _showValues;
 
     public GetNodeReactionsComponent()
         : base("SG Node Reactions", "sgReactions",
-            "Query node reaction forces and moments from a completed SpaceGass analysis.",
+            "Query node reaction forces and moments from a completed SpaceGass analysis. " +
+            "Draws force arrows and moment arcs in the viewport when preview is enabled.",
             "SpaceGass", "8 | Results")
     {
         BaseWorker = new GetNodeReactionsWorker(this);
@@ -32,6 +43,7 @@ public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsCompo
     public override GH_Exposure Exposure => GH_Exposure.primary;
     protected override Bitmap Icon => Icons.IconFactory.NodeReactions();
     public override Guid ComponentGuid => new("1D869AC5-109C-4D52-856C-EE5C1803CEBC");
+    public override bool IsPreviewCapable => true;
 
     protected override void RegisterInputParams(GH_InputParamManager pManager)
     {
@@ -45,9 +57,17 @@ public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsCompo
         _inLoadCases = pManager.AddTextParameter("Load Cases", "LC",
             "Optional: filter reactions to these load case names only.",
             GH_ParamAccess.list);
+        _inScale = pManager.AddNumberParameter("Visual Scale", "VSc",
+            "Optional: scale factor for viewport preview arrows. " +
+            "When omitted, auto-scale is computed (ADR-0009). Set to 0 to disable preview.",
+            GH_ParamAccess.item);
+        _inShowValues = pManager.AddBooleanParameter("Show Values?", "SV?",
+            "When true, display numeric reaction values adjacent to each arrow.",
+            GH_ParamAccess.item, false);
         
         pManager[_inPoints].Optional = true;
         pManager[_inLoadCases].Optional = true;
+        pManager[_inScale].Optional = true;
     }
 
     protected override void RegisterOutputParams(GH_OutputParamManager pManager)
@@ -59,7 +79,7 @@ public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsCompo
             "Node IDs, branched by load case.",
             GH_ParamAccess.tree);
         _outPoints = pManager.AddPointParameter("Node Points", "P",
-            "Reaction node locations, branched by load case.",
+            "Reaction node locations (first branch only — identical across load cases).",
             GH_ParamAccess.tree);
         _outFx = pManager.AddNumberParameter("Fx", "Fx",
             "Reaction force in global X, branched by load case.",
@@ -92,6 +112,56 @@ public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsCompo
         Menu_AppendItem(menu, "Cancel", (_, _) => { RequestCancellation(); });
     }
 
+    public override void DrawViewportWires(IGH_PreviewArgs args)
+    {
+        base.DrawViewportWires(args);
+        if (_previewArrows.Count == 0) return;
+
+        foreach (var arrow in _previewArrows)
+        {
+            var origin = arrow.Origin.ToPoint3d();
+            var color = GetAxisColor(arrow.Axis);
+
+            if (arrow.Type == ArrowType.Force)
+            {
+                var tip = new Point3d(origin.X + arrow.Dx, origin.Y + arrow.Dy, origin.Z + arrow.Dz);
+                PreviewDrawHelper.DrawForceArrow(args.Display, origin, tip, color);
+            }
+            else
+            {
+                PreviewDrawHelper.DrawMomentArc(args.Display, origin, arrow, color);
+            }
+
+            if (_showValues)
+            {
+                var tip = arrow.Type == ArrowType.Force
+                    ? new Point3d(origin.X + arrow.Dx, origin.Y + arrow.Dy, origin.Z + arrow.Dz)
+                    : PreviewDrawHelper.GetMomentArcEndPoint(origin, arrow);
+                args.Display.Draw2dText(
+                    arrow.Magnitude.ToString("G4"),
+                    color, tip, false, 12);
+            }
+        }
+    }
+
+    public override BoundingBox ClippingBox
+    {
+        get
+        {
+            var box = base.ClippingBox;
+            foreach (var arrow in _previewArrows)
+            {
+                var origin = arrow.Origin.ToPoint3d();
+                box.Union(origin);
+                box.Union(new Point3d(origin.X + arrow.Dx, origin.Y + arrow.Dy, origin.Z + arrow.Dz));
+            }
+            return box;
+        }
+    }
+
+    private static Color GetAxisColor(int axis) =>
+        axis switch { 0 => ColorX, 1 => ColorY, _ => ColorZ };
+
     private sealed class GetNodeReactionsWorker : WorkerInstance<GetNodeReactionsComponent>
     {
         public GetNodeReactionsWorker(GetNodeReactionsComponent parent, string id = "baseWorker",
@@ -102,6 +172,8 @@ public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsCompo
         private SgModelData InputModel { get; set; }
         private List<SgPoint3D> NodeFilter { get; set; }
         private List<string> LoadCaseFilter { get; set; }
+        private double? UserScale { get; set; }
+        private bool ShowValues { get; set; }
         private GH_Structure<GH_Point> OutPoints { get; set; }
         private GH_Structure<GH_Number> OutFx { get; set; }
         private GH_Structure<GH_Number> OutFy { get; set; }
@@ -113,6 +185,7 @@ public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsCompo
         private GH_Structure<GH_Integer> OutNodes { get; set; }
         private string OutWarningsText { get; set; }
         private string Status { get; set; } = string.Empty;
+        private List<PreviewArrow> PreviewArrows { get; set; } = new();
 
         public override WorkerInstance<GetNodeReactionsComponent> Duplicate(string id,
             CancellationToken cancellationToken)
@@ -132,6 +205,20 @@ public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsCompo
             var lcNames = new List<GH_String>();
             if (da.GetDataList(Parent._inLoadCases, lcNames) && lcNames.Count > 0)
                 LoadCaseFilter = lcNames.Where(s => s?.Value != null).Select(s => s.Value).ToList();
+
+            var scaleValue = 0.0;
+            if (da.GetData(Parent._inScale, ref scaleValue))
+            {
+                if (scaleValue < 0)
+                    AddRuntimeMessage(GH_RuntimeMessageLevel.Warning,
+                        "Scale must be ≥ 0. Preview disabled.");
+
+                UserScale = scaleValue;
+            }
+
+            var showValues = false;
+            da.GetData(Parent._inShowValues, ref showValues);
+            ShowValues = showValues;
         }
 
         public override async Task DoWork(Action<string, double> reportProgress, Action done)
@@ -194,10 +281,8 @@ public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsCompo
             }
 
             var idToPoint = new Dictionary<int, Point3d>();
-            foreach (var kvp in InputModel.NodeMap) idToPoint[kvp.Value] = new Point3d(kvp.Key.X, kvp.Key.Y, kvp.Key.Z);
-            var idToLcName = new Dictionary<int, string>();
-            foreach (var kvp in InputModel.LoadCaseMap) idToLcName[kvp.Value] = kvp.Key;
-            foreach (var kvp in InputModel.CombinationLoadCaseMap) idToLcName[kvp.Value] = kvp.Key;
+            foreach (var kvp in InputModel.NodeMap) idToPoint[kvp.Value] = kvp.Key.ToPoint3d();
+            var idToLcName = InputModel.BuildLoadCaseIdToNameMap();
             var grouped = result.Reactions.GroupBy(r => r.LoadCaseId).OrderBy(g => g.Key).ToList();
             OutPoints = new GH_Structure<GH_Point>();
             OutFx = new GH_Structure<GH_Number>();
@@ -217,9 +302,10 @@ public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsCompo
                     path);
                 foreach (var r in group.OrderBy(r => r.NodeId))
                 {
-                    OutPoints.Append(
-                        idToPoint.TryGetValue(r.NodeId, out var pt) ? new GH_Point(pt) : new GH_Point(Point3d.Unset),
-                        path);
+                    if (i == 0)
+                        OutPoints.Append(
+                            idToPoint.TryGetValue(r.NodeId, out var pt) ? new GH_Point(pt) : new GH_Point(Point3d.Unset),
+                            path);
                     OutNodes.Append(new GH_Integer(r.NodeId), path);
                     OutFx.Append(new GH_Number(r.Fx), path);
                     OutFy.Append(new GH_Number(r.Fy), path);
@@ -232,6 +318,13 @@ public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsCompo
 
             Parent.Message = $"{result.Reactions.Count} reactions";
             Status = $"{result.Reactions.Count} node reactions queried.";
+
+            // Build preview arrows from queried results
+            var idToSgPoint = new Dictionary<int, SgPoint3D>();
+            foreach (var kvp in InputModel.NodeMap) idToSgPoint[kvp.Value] = kvp.Key;
+            var bboxDiag = PreviewScaleHelper.ComputeBboxDiagonal(InputModel.NodeMap.Keys);
+            var previewResult = ReactionPreviewBuilder.Build(result.Reactions, idToSgPoint, bboxDiag, UserScale);
+            PreviewArrows = previewResult.Arrows;
         }
 
         public override void SetData(IGH_DataAccess da)
@@ -247,6 +340,10 @@ public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsCompo
             if (OutNodes != null) da.SetDataTree(Parent._outNodes, OutNodes);
             da.SetData(Parent._outWarnings, OutWarningsText ?? "");
             da.SetData(Parent._outStatus, Status);
+
+            // Copy preview state to the component for DrawViewportWires
+            Parent._previewArrows = PreviewArrows;
+            Parent._showValues = ShowValues;
         }
     }
 }

@@ -280,11 +280,7 @@ public class GetDynamicFrequencyResultsComponent : GH_AsyncComponent<GetDynamicF
                 idToPoint[kvp.Value] = new Point3d(kvp.Key.X, kvp.Key.Y, kvp.Key.Z);
 
             // Build reverse ID→name map for load cases
-            var idToLcName = new Dictionary<int, string>();
-            foreach (var kvp in InputModel.LoadCaseMap)
-                idToLcName[kvp.Value] = kvp.Key;
-            foreach (var kvp in InputModel.CombinationLoadCaseMap)
-                idToLcName[kvp.Value] = kvp.Key;
+            var idToLcName = InputModel.BuildLoadCaseIdToNameMap();
 
             // ── Collect all unique load cases and modes from both results ──
             var allLoadCaseIds = new SortedSet<int>();

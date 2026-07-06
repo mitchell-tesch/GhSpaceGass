@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using GhSpaceGass.Async;
 using GhSpaceGass.Core.Models;
+using GhSpaceGass.Core.Models.Visuals;
+using GhSpaceGass.Helpers;
 using GhSpaceGass.Types;
 using Grasshopper.Kernel;
 using Grasshopper.Kernel.Data;
@@ -18,9 +20,13 @@ namespace GhSpaceGass.Components.Results;
 
 public class GetNodeDisplacementsComponent : GH_AsyncComponent<GetNodeDisplacementsComponent>
 {
+    private static readonly Color DisplacementColor = Color.FromArgb(156, 39, 176);
+
     private int _inLoadCases;
     private int _inModel;
     private int _inPoints;
+    private int _inScale;
+    private int _inShowValues;
     
     private int _outLoadCases;
     private int _outNodes;
@@ -30,9 +36,14 @@ public class GetNodeDisplacementsComponent : GH_AsyncComponent<GetNodeDisplaceme
     private int _outWarnings;
     private int _outStatus;
 
+    // Preview state
+    private List<PreviewArrow> _previewArrows = new();
+    private bool _showValues;
+
     public GetNodeDisplacementsComponent()
         : base("SG Node Displacements", "sgDisplacements",
-            "Query node displacement results (translations and rotations) from a completed SpaceGass analysis.",
+            "Query node displacement results (translations and rotations) from a completed SpaceGass analysis. " +
+            "Draws displacement vectors in the viewport when preview is enabled.",
             "SpaceGass", "8 | Results")
     {
         BaseWorker = new GetNodeDisplacementsWorker(this);
@@ -41,6 +52,7 @@ public class GetNodeDisplacementsComponent : GH_AsyncComponent<GetNodeDisplaceme
     public override GH_Exposure Exposure => GH_Exposure.primary;
     protected override Bitmap Icon => Icons.IconFactory.NodeDisplacements();
     public override Guid ComponentGuid => new("B3382A2A-3404-4646-A086-4C0B6A0DA957");
+    public override bool IsPreviewCapable => true;
 
     protected override void RegisterInputParams(GH_InputParamManager pManager)
     {
@@ -54,9 +66,17 @@ public class GetNodeDisplacementsComponent : GH_AsyncComponent<GetNodeDisplaceme
         _inLoadCases = pManager.AddTextParameter("Load Cases", "LC",
             "Optional: filter displacements to these load case names only.",
             GH_ParamAccess.list);
+        _inScale = pManager.AddNumberParameter("Visual Scale", "VSc",
+            "Optional: scale factor for viewport preview vectors. " +
+            "When omitted, auto-scale is computed (ADR-0009). Set to 0 to disable preview.",
+            GH_ParamAccess.item);
+        _inShowValues = pManager.AddBooleanParameter("Show Values?", "SV?",
+            "When true, display resultant displacement magnitude adjacent to each vector.",
+            GH_ParamAccess.item, false);
 
         pManager[_inPoints].Optional = true;
         pManager[_inLoadCases].Optional = true;
+        pManager[_inScale].Optional = true;
     }
 
     protected override void RegisterOutputParams(GH_OutputParamManager pManager)
@@ -68,7 +88,7 @@ public class GetNodeDisplacementsComponent : GH_AsyncComponent<GetNodeDisplaceme
             "Node IDs, branched by load case.",
             GH_ParamAccess.tree);
         _outPoints = pManager.AddPointParameter("Node Points", "NP",
-            "Node locations, branched by load case.",
+            "Node locations (first branch only — identical across load cases).",
             GH_ParamAccess.tree);
         _outTx = pManager.AddNumberParameter("Tx", "Tx",
             "Translation in global X, branched by load case.",
@@ -101,6 +121,39 @@ public class GetNodeDisplacementsComponent : GH_AsyncComponent<GetNodeDisplaceme
         Menu_AppendItem(menu, "Cancel", (_, _) => { RequestCancellation(); });
     }
 
+    public override void DrawViewportWires(IGH_PreviewArgs args)
+    {
+        base.DrawViewportWires(args);
+        if (_previewArrows.Count == 0) return;
+
+        foreach (var arrow in _previewArrows)
+        {
+            var origin = arrow.Origin.ToPoint3d();
+            var tip = new Point3d(origin.X + arrow.Dx, origin.Y + arrow.Dy, origin.Z + arrow.Dz);
+            PreviewDrawHelper.DrawForceArrow(args.Display, origin, tip, DisplacementColor);
+
+            if (_showValues)
+                args.Display.Draw2dText(
+                    arrow.Magnitude.ToString("G4"),
+                    DisplacementColor, tip, false, 12);
+        }
+    }
+
+    public override BoundingBox ClippingBox
+    {
+        get
+        {
+            var box = base.ClippingBox;
+            foreach (var arrow in _previewArrows)
+            {
+                var origin = arrow.Origin.ToPoint3d();
+                box.Union(origin);
+                box.Union(new Point3d(origin.X + arrow.Dx, origin.Y + arrow.Dy, origin.Z + arrow.Dz));
+            }
+            return box;
+        }
+    }
+
     // ── Worker ────────────────────────────────────────────────────
 
     private sealed class GetNodeDisplacementsWorker : WorkerInstance<GetNodeDisplacementsComponent>
@@ -116,6 +169,8 @@ public class GetNodeDisplacementsComponent : GH_AsyncComponent<GetNodeDisplaceme
         private SgModelData InputModel { get; set; }
         private List<SgPoint3D> NodeFilter { get; set; }
         private List<string> LoadCaseFilter { get; set; }
+        private double? UserScale { get; set; }
+        private bool ShowValues { get; set; }
 
         private GH_Structure<GH_Point> OutPoints { get; set; }
         private GH_Structure<GH_Number> OutTx { get; set; }
@@ -128,6 +183,7 @@ public class GetNodeDisplacementsComponent : GH_AsyncComponent<GetNodeDisplaceme
         private GH_Structure<GH_Integer> OutNodes { get; set; }
         private string OutWarningsText { get; set; }
         private string Status { get; set; } = string.Empty;
+        private List<PreviewArrow> PreviewArrows { get; set; } = new();
 
         public override WorkerInstance<GetNodeDisplacementsComponent> Duplicate(
             string id, CancellationToken cancellationToken)
@@ -155,6 +211,19 @@ public class GetNodeDisplacementsComponent : GH_AsyncComponent<GetNodeDisplaceme
                     .Where(s => s?.Value != null)
                     .Select(s => s.Value)
                     .ToList();
+
+            var scaleValue = 0.0;
+            if (da.GetData(Parent._inScale, ref scaleValue))
+            {
+                if (scaleValue < 0)
+                    AddRuntimeMessage(GH_RuntimeMessageLevel.Warning,
+                        "Scale must be ≥ 0. Preview disabled.");
+                UserScale = scaleValue;
+            }
+
+            var showValues = false;
+            da.GetData(Parent._inShowValues, ref showValues);
+            ShowValues = showValues;
         }
 
         public override async Task DoWork(Action<string, double> reportProgress, Action done)
@@ -223,13 +292,9 @@ public class GetNodeDisplacementsComponent : GH_AsyncComponent<GetNodeDisplaceme
 
             var idToPoint = new Dictionary<int, Point3d>();
             foreach (var kvp in InputModel.NodeMap)
-                idToPoint[kvp.Value] = new Point3d(kvp.Key.X, kvp.Key.Y, kvp.Key.Z);
+                idToPoint[kvp.Value] = kvp.Key.ToPoint3d();
 
-            var idToLcName = new Dictionary<int, string>();
-            foreach (var kvp in InputModel.LoadCaseMap)
-                idToLcName[kvp.Value] = kvp.Key;
-            foreach (var kvp in InputModel.CombinationLoadCaseMap)
-                idToLcName[kvp.Value] = kvp.Key;
+            var idToLcName = InputModel.BuildLoadCaseIdToNameMap();
 
             var grouped = result.Displacements
                 .GroupBy(d => d.LoadCaseId)
@@ -259,10 +324,11 @@ public class GetNodeDisplacementsComponent : GH_AsyncComponent<GetNodeDisplaceme
 
                 foreach (var d in group.OrderBy(d => d.NodeId))
                 {
-                    OutPoints.Append(
-                        idToPoint.TryGetValue(d.NodeId, out var pt)
-                            ? new GH_Point(pt)
-                            : new GH_Point(Point3d.Unset), path);
+                    if (i == 0)
+                        OutPoints.Append(
+                            idToPoint.TryGetValue(d.NodeId, out var pt)
+                                ? new GH_Point(pt)
+                                : new GH_Point(Point3d.Unset), path);
                     OutNodes.Append(new GH_Integer(d.NodeId), path);
                     OutTx.Append(new GH_Number(d.Tx), path);
                     OutTy.Append(new GH_Number(d.Ty), path);
@@ -275,6 +341,14 @@ public class GetNodeDisplacementsComponent : GH_AsyncComponent<GetNodeDisplaceme
 
             Parent.Message = $"{result.Displacements.Count} displacements";
             Status = $"{result.Displacements.Count} node displacements queried.";
+
+            // Build preview vectors from queried results
+            var idToSgPoint = new Dictionary<int, SgPoint3D>();
+            foreach (var kvp in InputModel.NodeMap) idToSgPoint[kvp.Value] = kvp.Key;
+            var bboxDiag = PreviewScaleHelper.ComputeBboxDiagonal(InputModel.NodeMap.Keys);
+            var previewResult = DisplacementPreviewBuilder.Build(
+                result.Displacements, idToSgPoint, bboxDiag, UserScale);
+            PreviewArrows = previewResult.Arrows;
         }
 
         public override void SetData(IGH_DataAccess da)
@@ -290,6 +364,9 @@ public class GetNodeDisplacementsComponent : GH_AsyncComponent<GetNodeDisplaceme
             if (OutNodes != null) da.SetDataTree(Parent._outNodes, OutNodes);
             da.SetData(Parent._outWarnings, OutWarningsText ?? "");
             da.SetData(Parent._outStatus, Status);
+
+            Parent._previewArrows = PreviewArrows;
+            Parent._showValues = ShowValues;
         }
     }
 }

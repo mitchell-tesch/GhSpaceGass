@@ -7,12 +7,14 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using GhSpaceGass.Async;
 using GhSpaceGass.Core.Models;
+using GhSpaceGass.Core.Models.Visuals;
 using GhSpaceGass.Core.Services;
 using GhSpaceGass.Helpers;
 using GhSpaceGass.Types;
 using Grasshopper.Kernel;
 using Grasshopper.Kernel.Data;
 using Grasshopper.Kernel.Types;
+using Rhino.Display;
 using Rhino.Geometry;
 
 namespace GhSpaceGass.Components.Results;
@@ -23,6 +25,8 @@ public class GetPlateForcesComponent : GH_AsyncComponent<GetPlateForcesComponent
     private int _inMode;
     private int _inModel;
     private int _inPlates;
+    private int _inVisual;
+    private int _inShowValues;
 
     // Shared outputs
     private int _outLoadCases, _outPlates, _outMeshes;
@@ -39,9 +43,14 @@ public class GetPlateForcesComponent : GH_AsyncComponent<GetPlateForcesComponent
 
     private int _outWarnings, _outStatus;
 
+    // Preview state
+    private List<(Mesh Mesh, DisplayMaterial Material, Point3d Centroid, double Value)> _previewContours = new();
+    private bool _showValues;
+
     public GetPlateForcesComponent()
         : base("SG Plate Forces", "sgPlateForces",
-            "Query plate forces from a SpaceGass analysis (Element Forces or Nodal Forces mode).",
+            "Query plate forces from a SpaceGass analysis (Element Forces or Nodal Forces mode). " +
+            "Draws colour contour on plates in Element Forces mode when preview is enabled.",
             "SpaceGass", "8 | Results")
     {
         BaseWorker = new GetPlateForcesWorker(this);
@@ -50,6 +59,7 @@ public class GetPlateForcesComponent : GH_AsyncComponent<GetPlateForcesComponent
     public override GH_Exposure Exposure => GH_Exposure.tertiary;
     protected override Bitmap Icon => Icons.IconFactory.PlateForces();
     public override Guid ComponentGuid => new("A3E70C10-B8A3-4D22-9F1D-7E6A5C4B3D30");
+    public override bool IsPreviewCapable => true;
 
     protected override void RegisterInputParams(GH_InputParamManager pManager)
     {
@@ -72,6 +82,17 @@ public class GetPlateForcesComponent : GH_AsyncComponent<GetPlateForcesComponent
             "Element Forces=0 (average forces per plate), Nodal Forces=1 (forces at each corner node).\n" +
             "Default: Element Forces.",
             GH_ParamAccess.item);
+        _inVisual = pManager.AddParameter(
+            new Param_SgIntegerOption("Visual", ValueListHelper.PlateForceVisualOptions,
+                defaultValue: 3, autoCreate: true),
+            "Visual", "V",
+            "Force component to contour in Element Forces mode.\n" +
+            "Fx=0, Fy=1, Fxy=2, Mx=3, My=4, Mxy=5, Vxz=6, Vyz=7, MxTop=8, MxBtm=9, MyTop=10, MyBtm=11.\n" +
+            "Default: Mx.",
+            GH_ParamAccess.item);
+        _inShowValues = pManager.AddBooleanParameter("Show Values?", "SV",
+            "When true, display force/moment values at each plate centroid.",
+            GH_ParamAccess.item, false);
 
         pManager[_inPlates].Optional = true;
         pManager[_inLoadCases].Optional = true;
@@ -88,7 +109,7 @@ public class GetPlateForcesComponent : GH_AsyncComponent<GetPlateForcesComponent
             "Plate IDs, branched by {load_case} in Element Forces mode or {load_case; plate} in Nodal Forces mode.",
             GH_ParamAccess.tree);
         _outMeshes = pManager.AddMeshParameter("PlateMeshes", "PMsh",
-            "Plate meshes (tri or quad), branched matching Plate IDs.",
+            "Plate meshes (first load case branch only — identical across load cases).",
             GH_ParamAccess.tree);
 
         // Element Forces mode (populated in Element Forces mode only)
@@ -155,6 +176,54 @@ public class GetPlateForcesComponent : GH_AsyncComponent<GetPlateForcesComponent
         Menu_AppendItem(menu, "Cancel", (_, _) => { RequestCancellation(); });
     }
 
+    public override void DrawViewportMeshes(IGH_PreviewArgs args)
+    {
+        base.DrawViewportMeshes(args);
+        foreach (var (mesh, material, _, _) in _previewContours)
+        {
+            args.Display.DrawMeshShaded(mesh, material);
+            args.Display.DrawMeshWires(mesh, Color.FromArgb(80, 80, 80), 1);
+        }
+    }
+
+    public override void DrawViewportWires(IGH_PreviewArgs args)
+    {
+        base.DrawViewportWires(args);
+        if (!_showValues) return;
+        foreach (var (_, _, centroid, value) in _previewContours)
+        {
+            args.Display.Draw2dText(
+                value.ToString("G4"), Color.Black, centroid, false, 12);
+        }
+    }
+
+    public override BoundingBox ClippingBox
+    {
+        get
+        {
+            var box = base.ClippingBox;
+            foreach (var (mesh, _, _, _) in _previewContours)
+                box.Union(mesh.GetBoundingBox(false));
+            return box;
+        }
+    }
+
+    private static Color ContourColor(double normalisedValue)
+    {
+        // Turbo colormap: remap [-1..1] → [0..1] then apply Turbo polynomial
+        var t = Math.Clamp((normalisedValue + 1.0) * 0.5, 0.0, 1.0);
+        return TurboColor(t);
+    }
+
+    /// <summary>Turbo colormap by Anton Mikhailov (Google). Maps t ∈ [0,1] → RGB.</summary>
+    private static Color TurboColor(double t)
+    {
+        var r = Math.Clamp(0.13572138 + t * (4.61539260 + t * (-42.66032258 + t * (132.13108234 + t * (-152.94239396 + t * 59.28637943)))), 0.0, 1.0);
+        var g = Math.Clamp(0.09140261 + t * (2.19418839 + t * (4.84296658 + t * (-14.18503333 + t * (4.27729857 + t * 2.82956604)))), 0.0, 1.0);
+        var b = Math.Clamp(0.10667330 + t * (12.64194608 + t * (-60.58204836 + t * (110.36276771 + t * (-89.90310912 + t * 27.34824973)))), 0.0, 1.0);
+        return Color.FromArgb((int)(r * 255), (int)(g * 255), (int)(b * 255));
+    }
+
     // ── Worker ────────────────────────────────────────────────────
 
     private sealed class GetPlateForcesWorker : WorkerInstance<GetPlateForcesComponent>
@@ -171,6 +240,8 @@ public class GetPlateForcesComponent : GH_AsyncComponent<GetPlateForcesComponent
         private List<SgPoint3D[]> PlateFilter { get; set; }
         private List<string> LoadCaseFilter { get; set; }
         private int Mode { get; set; }
+        private int VisualIndex { get; set; } = 3;
+        private bool ShowValues { get; set; }
 
         // Element Forces output trees
         private GH_Structure<GH_String> OutLoadCases { get; set; }
@@ -201,6 +272,7 @@ public class GetPlateForcesComponent : GH_AsyncComponent<GetPlateForcesComponent
 
         private string OutWarningsText { get; set; }
         private string Status { get; set; } = string.Empty;
+        private List<(Mesh Mesh, Color FaceColor, SgPoint3D Centroid, double Value)> PreviewContours { get; set; } = new();
 
         public override WorkerInstance<GetPlateForcesComponent> Duplicate(
             string id, CancellationToken cancellationToken)
@@ -231,6 +303,14 @@ public class GetPlateForcesComponent : GH_AsyncComponent<GetPlateForcesComponent
             var mode = 0;
             da.GetData(Parent._inMode, ref mode);
             Mode = mode;
+
+            var visual = 3;
+            da.GetData(Parent._inVisual, ref visual);
+            VisualIndex = visual;
+
+            var showValues = false;
+            da.GetData(Parent._inShowValues, ref showValues);
+            ShowValues = showValues;
         }
 
         public override async Task DoWork(Action<string, double> reportProgress, Action done)
@@ -318,9 +398,7 @@ public class GetPlateForcesComponent : GH_AsyncComponent<GetPlateForcesComponent
             }
 
             // Build reverse load case map
-            var idToLcName = new Dictionary<int, string>();
-            foreach (var kvp in InputModel.LoadCaseMap) idToLcName[kvp.Value] = kvp.Key;
-            foreach (var kvp in InputModel.CombinationLoadCaseMap) idToLcName[kvp.Value] = kvp.Key;
+            var idToLcName = InputModel.BuildLoadCaseIdToNameMap();
 
             // Group by load case — tree {load_case} with plates as list items (ADR-0008)
             var byLoadCase = result.Forces
@@ -341,7 +419,8 @@ public class GetPlateForcesComponent : GH_AsyncComponent<GetPlateForcesComponent
                 foreach (var f in lcGroup.OrderBy(ef => ef.PlateId))
                 {
                     OutPlates.Append(new GH_Integer(f.PlateId), path);
-                    OutMeshes.Append(new GH_Mesh(BuildPlateMesh(InputModel, f.PlateId)), path);
+                    if (lcIdx == 0)
+                        OutMeshes.Append(new GH_Mesh(BuildPlateMesh(InputModel, f.PlateId)), path);
                     OutFx.Append(new GH_Number(f.Fx), path);
                     OutFy.Append(new GH_Number(f.Fy), path);
                     OutFxy.Append(new GH_Number(f.Fxy), path);
@@ -359,6 +438,23 @@ public class GetPlateForcesComponent : GH_AsyncComponent<GetPlateForcesComponent
 
             Parent.Message = $"{result.Forces.Count} element forces";
             Status = $"{result.Forces.Count} element forces queried.";
+
+            // Build plate contour preview (skip when Visual = None)
+            if (VisualIndex >= 0)
+            {
+                var plateMapSg = new Dictionary<int, SgPoint3D[]>();
+                foreach (var kvp in InputModel.PlateMap) plateMapSg[kvp.Key] = kvp.Value;
+                var contourResult = PlateContourBuilder.Build(result.Forces, plateMapSg, VisualIndex);
+
+                PreviewContours = contourResult.Contours
+                    .Select(c =>
+                    {
+                        var mesh = BuildPlateMesh(InputModel, c.CornerPoints);
+                        var color = ContourColor(c.NormalisedValue);
+                        return (mesh, color, c.Centroid, c.Value);
+                    })
+                    .ToList();
+            }
         }
 
         private async Task QueryNodalForcesAsync()
@@ -390,14 +486,12 @@ public class GetPlateForcesComponent : GH_AsyncComponent<GetPlateForcesComponent
             }
 
             // Build reverse load case map
-            var idToLcName = new Dictionary<int, string>();
-            foreach (var kvp in InputModel.LoadCaseMap) idToLcName[kvp.Value] = kvp.Key;
-            foreach (var kvp in InputModel.CombinationLoadCaseMap) idToLcName[kvp.Value] = kvp.Key;
+            var idToLcName = InputModel.BuildLoadCaseIdToNameMap();
 
             // Build reverse node map for point resolution
             var idToPoint = new Dictionary<int, Point3d>();
             foreach (var kvp in InputModel.NodeMap)
-                idToPoint[kvp.Value] = new Point3d(kvp.Key.X, kvp.Key.Y, kvp.Key.Z);
+                idToPoint[kvp.Value] = kvp.Key.ToPoint3d();
 
             // Group by load case, then by plate — tree {load_case; plate} (ADR-0015)
             var byLoadCase = result.Forces
@@ -436,7 +530,8 @@ public class GetPlateForcesComponent : GH_AsyncComponent<GetPlateForcesComponent
                     var path = new GH_Path(lcIdx, plateIdx);
 
                     OutPlates.Append(new GH_Integer(plateGroup.Key), path);
-                    OutMeshes.Append(new GH_Mesh(BuildPlateMesh(InputModel, plateGroup.Key)), path);
+                    if (lcIdx == 0)
+                        OutMeshes.Append(new GH_Mesh(BuildPlateMesh(InputModel, plateGroup.Key)), path);
 
                     foreach (var f in plateGroup.OrderBy(nf => nf.NodeId))
                     {
@@ -461,12 +556,16 @@ public class GetPlateForcesComponent : GH_AsyncComponent<GetPlateForcesComponent
 
         private static Mesh BuildPlateMesh(SgModelData model, int plateId)
         {
-            var mesh = new Mesh();
             if (!model.PlateMap.TryGetValue(plateId, out var corners))
-                return mesh;
+                return new Mesh();
+            return BuildPlateMesh(model, corners);
+        }
 
+        private static Mesh BuildPlateMesh(SgModelData _, SgPoint3D[] corners)
+        {
+            var mesh = new Mesh();
             foreach (var pt in corners)
-                mesh.Vertices.Add(new Point3d(pt.X, pt.Y, pt.Z));
+                mesh.Vertices.Add(pt.ToPoint3d());
 
             if (corners.Length == 3)
                 mesh.Faces.AddFace(0, 1, 2);
@@ -504,6 +603,15 @@ public class GetPlateForcesComponent : GH_AsyncComponent<GetPlateForcesComponent
             if (OutNMz != null) da.SetDataTree(Parent._outNMz, OutNMz);
             da.SetData(Parent._outWarnings, OutWarningsText ?? "");
             da.SetData(Parent._outStatus, Status);
+
+            Parent._previewContours = PreviewContours
+                .Select(c => (
+                    c.Mesh,
+                    new DisplayMaterial(c.FaceColor) { Transparency = 0.3 },
+                    c.Centroid.ToPoint3d(),
+                    c.Value))
+                .ToList();
+            Parent._showValues = ShowValues;
         }
     }
 }
