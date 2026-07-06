@@ -146,6 +146,7 @@ public class AssembleModelComponent : GH_AsyncComponent<AssembleModelComponent>
         private List<SgCombinationLoadCaseData> CombinationLoadCases { get; set; } = new();
         private double Tolerance { get; set; }
         private bool AppendMode { get; set; }
+        private int MultiInstanceCount { get; set; }
 
         private SgModelData Model { get; set; }
         private string Status { get; set; } = string.Empty;
@@ -262,6 +263,14 @@ public class AssembleModelComponent : GH_AsyncComponent<AssembleModelComponent>
             var mode = 0;
             da.GetData(Parent._inMode, ref mode);
             AppendMode = mode == 1;
+
+            // Check for multiple Assemble Model instances (ADR-0005) — must run on UI thread
+            MultiInstanceCount = 0;
+            var doc = Parent.OnPingDocument();
+            if (doc != null)
+                foreach (var obj in doc.Objects)
+                    if (obj is AssembleModelComponent)
+                        MultiInstanceCount++;
         }
 
         public override async Task DoWork(Action<string, double> reportProgress, Action done)
@@ -305,18 +314,10 @@ public class AssembleModelComponent : GH_AsyncComponent<AssembleModelComponent>
                 return;
             }
 
-            // Check for multiple Assemble Model instances (ADR-0005)
-            var doc = Parent.OnPingDocument();
-            if (doc != null)
-            {
-                var count = 0;
-                foreach (var obj in doc.Objects)
-                    if (obj is AssembleModelComponent)
-                        count++;
-                if (count > 1)
-                    AddRuntimeMessage(GH_RuntimeMessageLevel.Warning,
-                        $"{count} Assemble Model components detected. Only the last to solve owns the job.");
-            }
+            // Warn about multiple Assemble Model instances (ADR-0005)
+            if (MultiInstanceCount > 1)
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Warning,
+                    $"{MultiInstanceCount} Assemble Model components detected. Only the last to solve owns the job.");
 
             var result = await session.AssembleModelAsync(
                     Members, Tolerance, Restraints, NodeLoads, DistLoads, SelfWeightLoads, CombinationLoadCases,

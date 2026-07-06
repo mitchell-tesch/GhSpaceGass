@@ -7,7 +7,11 @@ namespace GhSpaceGass.Core.Models;
 /// </summary>
 public class SgModelData
 {
-    /// <summary>Point → SpaceGass node ID.</summary>
+    /// <summary>
+    ///     Point → SpaceGass node ID.
+    ///     Keys are canonical points from the spatial deduplication grid.
+    ///     Use <see cref="TryGetNodeId"/> for tolerance-based lookup from external points.
+    /// </summary>
     public Dictionary<SgPoint3D, int> NodeMap { get; } = new();
 
     /// <summary>SpaceGass member ID → (start, end) geometry.</summary>
@@ -16,11 +20,11 @@ public class SgModelData
     /// <summary>SpaceGass plate ID → corner points.</summary>
     public Dictionary<int, SgPoint3D[]> PlateMap { get; } = new();
 
-    /// <summary>Section library name → SpaceGass section ID.</summary>
-    public Dictionary<string, int> SectionMap { get; } = new();
+    /// <summary>Section key → SpaceGass section ID.</summary>
+    public Dictionary<string, int> SectionMap { get; } = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>Material library name → SpaceGass material ID.</summary>
-    public Dictionary<string, int> MaterialMap { get; } = new();
+    /// <summary>Material key → SpaceGass material ID.</summary>
+    public Dictionary<string, int> MaterialMap { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Point → restraint code applied at that node.</summary>
     public Dictionary<SgPoint3D, string> RestraintMap { get; } = new();
@@ -29,13 +33,13 @@ public class SgModelData
     public int ConstraintCount { get; set; }
 
     /// <summary>Load case name → SpaceGass load case ID.</summary>
-    public Dictionary<string, int> LoadCaseMap { get; } = new();
+    public Dictionary<string, int> LoadCaseMap { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Combination load case name → SpaceGass load case ID.</summary>
-    public Dictionary<string, int> CombinationLoadCaseMap { get; } = new();
+    public Dictionary<string, int> CombinationLoadCaseMap { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Load category name → SpaceGass load category ID.</summary>
-    public Dictionary<string, int> LoadCategoryMap { get; } = new();
+    public Dictionary<string, int> LoadCategoryMap { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Total number of node loads pushed to SpaceGass.</summary>
     public int NodeLoadCount { get; set; }
@@ -71,8 +75,35 @@ public class SgModelData
     {
         var map = new Dictionary<int, string>();
         foreach (var kvp in LoadCaseMap) map[kvp.Value] = kvp.Key;
-        foreach (var kvp in CombinationLoadCaseMap) map[kvp.Value] = kvp.Key;
+        foreach (var kvp in CombinationLoadCaseMap) map.TryAdd(kvp.Value, kvp.Key);
         return map;
+    }
+
+    /// <summary>
+    ///     Tolerance-based node lookup. Tries exact match first (O(1)), then falls back
+    ///     to a linear scan with coincidence check. Returns false if no match within tolerance.
+    /// </summary>
+    public bool TryGetNodeId(SgPoint3D point, out int nodeId, double tolerance = 0)
+    {
+        // Fast path: exact match (works when point came from the same canonical source)
+        if (NodeMap.TryGetValue(point, out nodeId))
+            return true;
+
+        // Slow path: tolerance-based scan for externally-sourced points
+        if (tolerance > 0)
+        {
+            foreach (var kvp in NodeMap)
+            {
+                if (kvp.Key.IsCoincident(point, tolerance))
+                {
+                    nodeId = kvp.Value;
+                    return true;
+                }
+            }
+        }
+
+        nodeId = default;
+        return false;
     }
 }
 

@@ -22,6 +22,28 @@ internal class SpaceGassApiWrapper : ISpaceGassApi
         _client = client ?? throw new ArgumentNullException(nameof(client));
     }
 
+    /// <summary>
+    ///     Extracts succeeded items from a bulk result and throws if any errors were reported.
+    /// </summary>
+    private static List<T> ExtractBulkResult<T>(
+        List<T>? succeeded, List<BulkError>? errors, string entityType)
+    {
+        if (errors is { Count: > 0 })
+        {
+            var messages = errors
+                .Take(5)
+                .Select(e => e.Error ?? "Unknown error")
+                .ToList();
+            var summary = string.Join("; ", messages);
+            if (errors.Count > 5)
+                summary += $"; ... and {errors.Count - 5} more";
+            throw new InvalidOperationException(
+                $"Bulk create {entityType} had {errors.Count} error(s): {summary}");
+        }
+
+        return succeeded ?? new List<T>();
+    }
+
     public async Task<ServiceInfo> GetServiceInfoAsync(CancellationToken ct = default)
     {
         return (await _client.Service.Info.GetAsync(cancellationToken: ct).ConfigureAwait(false))!;
@@ -68,7 +90,7 @@ internal class SpaceGassApiWrapper : ISpaceGassApi
     {
         var result = await _client.Job.Structure.Materials.Library.Bulk.PostAsync(
             materials, cancellationToken: ct).ConfigureAwait(false);
-        return result?.Succeeded ?? new List<Material>();
+        return ExtractBulkResult(result?.Succeeded, result?.Errors, "library materials");
     }
 
     public async Task<List<Material>> CreateMaterialsFromUserAsync(
@@ -76,7 +98,7 @@ internal class SpaceGassApiWrapper : ISpaceGassApi
     {
         var result = await _client.Job.Structure.Materials.Bulk.PostAsync(
             materials, cancellationToken: ct).ConfigureAwait(false);
-        return result?.Succeeded ?? new List<Material>();
+        return ExtractBulkResult(result?.Succeeded, result?.Errors, "custom materials");
     }
 
     public async Task<List<Section>> CreateSectionsFromLibraryAsync(
@@ -84,7 +106,7 @@ internal class SpaceGassApiWrapper : ISpaceGassApi
     {
         var result = await _client.Job.Structure.Sections.Library.Bulk.PostAsync(
             sections, cancellationToken: ct).ConfigureAwait(false);
-        return result?.Succeeded ?? new List<Section>();
+        return ExtractBulkResult(result?.Succeeded, result?.Errors, "library sections");
     }
 
     public async Task<List<Section>> CreateSectionsFromUserAsync(
@@ -92,7 +114,7 @@ internal class SpaceGassApiWrapper : ISpaceGassApi
     {
         var result = await _client.Job.Structure.Sections.Bulk.PostAsync(
             sections, cancellationToken: ct).ConfigureAwait(false);
-        return result?.Succeeded ?? new List<Section>();
+        return ExtractBulkResult(result?.Succeeded, result?.Errors, "custom sections");
     }
 
     public async Task<List<Node>> CreateNodesAsync(
@@ -100,7 +122,7 @@ internal class SpaceGassApiWrapper : ISpaceGassApi
     {
         var result = await _client.Job.Structure.Nodes.Bulk.PostAsync(
             nodes, cancellationToken: ct).ConfigureAwait(false);
-        return result?.Succeeded ?? new List<Node>();
+        return ExtractBulkResult(result?.Succeeded, result?.Errors, "nodes");
     }
 
     public async Task<List<Member>> CreateMembersAsync(
@@ -108,7 +130,7 @@ internal class SpaceGassApiWrapper : ISpaceGassApi
     {
         var result = await _client.Job.Structure.Members.Bulk.PostAsync(
             members, cancellationToken: ct).ConfigureAwait(false);
-        return result?.Succeeded ?? new List<Member>();
+        return ExtractBulkResult(result?.Succeeded, result?.Errors, "members");
     }
 
     public async Task<List<MemberOffset>> CreateMemberOffsetsAsync(
@@ -116,7 +138,7 @@ internal class SpaceGassApiWrapper : ISpaceGassApi
     {
         var result = await _client.Job.Structure.MemberOffsets.Bulk.PostAsync(
             offsets, cancellationToken: ct).ConfigureAwait(false);
-        return result?.Succeeded ?? new List<MemberOffset>();
+        return ExtractBulkResult(result?.Succeeded, result?.Errors, "member offsets");
     }
 
     public async Task<List<Plate>> CreatePlatesAsync(
@@ -124,7 +146,7 @@ internal class SpaceGassApiWrapper : ISpaceGassApi
     {
         var result = await _client.Job.Structure.Plates.Bulk.PostAsync(
             plates, cancellationToken: ct).ConfigureAwait(false);
-        return result?.Succeeded ?? new List<Plate>();
+        return ExtractBulkResult(result?.Succeeded, result?.Errors, "plates");
     }
 
     public async Task<List<PlatePressureLoad>> CreatePlatePressureLoadsAsync(
@@ -132,7 +154,7 @@ internal class SpaceGassApiWrapper : ISpaceGassApi
     {
         var result = await _client.Job.Loads.PlatePressureLoads.Bulk.PostAsync(
             loads, cancellationToken: ct).ConfigureAwait(false);
-        return result?.Succeeded ?? new List<PlatePressureLoad>();
+        return ExtractBulkResult(result?.Succeeded, result?.Errors, "plate pressure loads");
     }
 
     public async Task<List<ThermalLoad>> CreateThermalLoadsAsync(
@@ -140,7 +162,7 @@ internal class SpaceGassApiWrapper : ISpaceGassApi
     {
         var result = await _client.Job.Loads.ThermalLoads.Bulk.PostAsync(
             loads, cancellationToken: ct).ConfigureAwait(false);
-        return result?.Succeeded ?? new List<ThermalLoad>();
+        return ExtractBulkResult(result?.Succeeded, result?.Errors, "thermal loads");
     }
 
     public async Task<List<NodeRestraint>> CreateNodeRestraintsAsync(
@@ -148,7 +170,7 @@ internal class SpaceGassApiWrapper : ISpaceGassApi
     {
         var result = await _client.Job.Structure.NodeRestraints.Bulk.PostAsync(
             restraints, cancellationToken: ct).ConfigureAwait(false);
-        return result?.Succeeded ?? new List<NodeRestraint>();
+        return ExtractBulkResult(result?.Succeeded, result?.Errors, "restraints");
     }
 
     public async Task<List<NodeConstraint>> CreateNodeConstraintsAsync(
@@ -156,7 +178,7 @@ internal class SpaceGassApiWrapper : ISpaceGassApi
     {
         var result = await _client.Job.Structure.NodeConstraints.Bulk.PostAsync(
             constraints, cancellationToken: ct).ConfigureAwait(false);
-        return result?.Succeeded ?? new List<NodeConstraint>();
+        return ExtractBulkResult(result?.Succeeded, result?.Errors, "constraints");
     }
 
     public async Task<List<LoadCase>> CreateLoadCasesAsync(
@@ -164,7 +186,7 @@ internal class SpaceGassApiWrapper : ISpaceGassApi
     {
         var result = await _client.Job.Loads.LoadCases.Bulk.PostAsync(
             loadCases, cancellationToken: ct).ConfigureAwait(false);
-        return result?.Succeeded ?? new List<LoadCase>();
+        return ExtractBulkResult(result?.Succeeded, result?.Errors, "load cases");
     }
 
     public async Task<List<LoadCategory>> CreateLoadCategoriesAsync(
@@ -172,7 +194,7 @@ internal class SpaceGassApiWrapper : ISpaceGassApi
     {
         var result = await _client.Job.Loads.LoadCategories.Bulk.PostAsync(
             loadCategories, cancellationToken: ct).ConfigureAwait(false);
-        return result?.Succeeded ?? new List<LoadCategory>();
+        return ExtractBulkResult(result?.Succeeded, result?.Errors, "load categories");
     }
 
     public async Task<List<NodeLoad>> CreateNodeLoadsAsync(
@@ -180,7 +202,7 @@ internal class SpaceGassApiWrapper : ISpaceGassApi
     {
         var result = await _client.Job.Loads.NodeLoads.Bulk.PostAsync(
             nodeLoads, cancellationToken: ct).ConfigureAwait(false);
-        return result?.Succeeded ?? new List<NodeLoad>();
+        return ExtractBulkResult(result?.Succeeded, result?.Errors, "node loads");
     }
 
     public async Task<List<MemberDistributedLoad>> CreateMemberDistributedLoadsAsync(
@@ -188,7 +210,7 @@ internal class SpaceGassApiWrapper : ISpaceGassApi
     {
         var result = await _client.Job.Loads.MemberDistributedLoads.Bulk.PostAsync(
             loads, cancellationToken: ct).ConfigureAwait(false);
-        return result?.Succeeded ?? new List<MemberDistributedLoad>();
+        return ExtractBulkResult(result?.Succeeded, result?.Errors, "distributed loads");
     }
 
     public async Task<List<MemberDistributedMoment>> CreateMemberDistributedMomentsAsync(
@@ -196,7 +218,7 @@ internal class SpaceGassApiWrapper : ISpaceGassApi
     {
         var result = await _client.Job.Loads.MemberDistributedMoments.Bulk.PostAsync(
             moments, cancellationToken: ct).ConfigureAwait(false);
-        return result?.Succeeded ?? new List<MemberDistributedMoment>();
+        return ExtractBulkResult(result?.Succeeded, result?.Errors, "distributed moments");
     }
 
     public async Task<List<MemberConcentratedLoad>> CreateMemberConcentratedLoadsAsync(
@@ -204,7 +226,7 @@ internal class SpaceGassApiWrapper : ISpaceGassApi
     {
         var result = await _client.Job.Loads.MemberConcentratedLoads.Bulk.PostAsync(
             loads, cancellationToken: ct).ConfigureAwait(false);
-        return result?.Succeeded ?? new List<MemberConcentratedLoad>();
+        return ExtractBulkResult(result?.Succeeded, result?.Errors, "concentrated loads");
     }
 
     public async Task<List<MemberPrestressLoad>> CreateMemberPrestressLoadsAsync(
@@ -212,7 +234,7 @@ internal class SpaceGassApiWrapper : ISpaceGassApi
     {
         var result = await _client.Job.Loads.MemberPrestressLoads.Bulk.PostAsync(
             loads, cancellationToken: ct).ConfigureAwait(false);
-        return result?.Succeeded ?? new List<MemberPrestressLoad>();
+        return ExtractBulkResult(result?.Succeeded, result?.Errors, "prestress loads");
     }
 
     public async Task<List<SelfWeightLoad>> CreateSelfWeightLoadsAsync(
@@ -220,7 +242,7 @@ internal class SpaceGassApiWrapper : ISpaceGassApi
     {
         var result = await _client.Job.Loads.SelfWeightLoads.Bulk.PostAsync(
             loads, cancellationToken: ct).ConfigureAwait(false);
-        return result?.Succeeded ?? new List<SelfWeightLoad>();
+        return ExtractBulkResult(result?.Succeeded, result?.Errors, "self-weight loads");
     }
 
     public async Task<List<LoadCase>> CreateCombinationLoadCasesAsync(
@@ -228,7 +250,7 @@ internal class SpaceGassApiWrapper : ISpaceGassApi
     {
         var result = await _client.Job.Loads.CombinationLoadCases.Bulk.PostAsync(
             combinations, cancellationToken: ct).ConfigureAwait(false);
-        return result?.Succeeded ?? new List<LoadCase>();
+        return ExtractBulkResult(result?.Succeeded, result?.Errors, "combination load cases");
     }
 
     public async Task<List<LumpedMassLoad>> CreateLumpedMassLoadsAsync(
@@ -236,7 +258,7 @@ internal class SpaceGassApiWrapper : ISpaceGassApi
     {
         var result = await _client.Job.Loads.LumpedMassLoads.Bulk.PostAsync(
             loads, cancellationToken: ct).ConfigureAwait(false);
-        return result?.Succeeded ?? new List<LumpedMassLoad>();
+        return ExtractBulkResult(result?.Succeeded, result?.Errors, "lumped mass loads");
     }
 
     public async Task<List<PrescribedDisplacement>> CreatePrescribedDisplacementsAsync(
@@ -244,7 +266,7 @@ internal class SpaceGassApiWrapper : ISpaceGassApi
     {
         var result = await _client.Job.Loads.NodeDisplacements.Bulk.PostAsync(
             displacements, cancellationToken: ct).ConfigureAwait(false);
-        return result?.Succeeded ?? new List<PrescribedDisplacement>();
+        return ExtractBulkResult(result?.Succeeded, result?.Errors, "prescribed displacements");
     }
 
     public async Task<AnalysisRun> RunStaticAnalysisAsync(

@@ -1486,7 +1486,7 @@ public class SpaceGassSession : IDisposable
         {
             var nodeIds = new List<int>();
             foreach (var pt in nodeFilter)
-                if (model.NodeMap.TryGetValue(pt, out var nodeId))
+                if (model.TryGetNodeId(pt, out var nodeId))
                     nodeIds.Add(nodeId);
                 else
                     result.Warnings.Add(
@@ -2051,7 +2051,7 @@ public class SpaceGassSession : IDisposable
         {
             var nodeIds = new List<int>();
             foreach (var pt in nodesFilter)
-                if (model.NodeMap.TryGetValue(pt, out var nodeId))
+                if (model.TryGetNodeId(pt, out var nodeId))
                     nodeIds.Add(nodeId);
                 else
                     result.Warnings.Add(

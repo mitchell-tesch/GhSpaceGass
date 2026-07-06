@@ -1,4 +1,4 @@
-﻿namespace GhSpaceGass.Core.Models;
+namespace GhSpaceGass.Core.Models;
 
 /// <summary>
 ///     In-memory representation of a material (library or custom). No API call - pure data.
@@ -40,19 +40,19 @@ public class SgMaterialData
 
     // Custom material properties (only used when IsLibrary == false)
     /// <summary>Young's modulus (E).</summary>
-    public double? YoungsModulus { get; set; }
+    public double? YoungsModulus { get; }
 
     /// <summary>Poisson's ratio.</summary>
-    public double? PoissonsRatio { get; set; }
+    public double? PoissonsRatio { get; }
 
     /// <summary>Mass density.</summary>
-    public double? MassDensity { get; set; }
+    public double? MassDensity { get; }
 
     /// <summary>Thermal expansion coefficient.</summary>
-    public double? ThermalCoeff { get; set; }
+    public double? ThermalCoeff { get; }
 
     /// <summary>Concrete compressive strength.</summary>
-    public double? ConcreteStrength { get; set; }
+    public double? ConcreteStrength { get; }
 
     /// <summary>Unique key for deduplication (ADR-0006).</summary>
     public string Key => IsLibrary

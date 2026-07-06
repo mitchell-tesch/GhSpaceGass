@@ -114,29 +114,41 @@ public class GetPlateForcesComponent : GH_AsyncComponent<GetPlateForcesComponent
 
         // Element Forces mode (populated in Element Forces mode only)
         _outFx = pManager.AddNumberParameter("Fx", "Fx",
-            "In-plane force X, branched by {load_case}.", GH_ParamAccess.tree);
+            "In-plane force X, branched by {load_case}.",
+            GH_ParamAccess.tree);
         _outFy = pManager.AddNumberParameter("Fy", "Fy",
-            "In-plane force Y, branched by {load_case}.", GH_ParamAccess.tree);
+            "In-plane force Y, branched by {load_case}.",
+            GH_ParamAccess.tree);
         _outFxy = pManager.AddNumberParameter("Fxy", "Fxy",
-            "In-plane shear, branched by {load_case}.", GH_ParamAccess.tree);
+            "In-plane shear, branched by {load_case}.",
+            GH_ParamAccess.tree);
         _outMx = pManager.AddNumberParameter("Mx", "Mx",
-            "Bending moment X, branched by {load_case}.", GH_ParamAccess.tree);
+            "Bending moment X, branched by {load_case}.",
+            GH_ParamAccess.tree);
         _outMy = pManager.AddNumberParameter("My", "My",
-            "Bending moment Y, branched by {load_case}.", GH_ParamAccess.tree);
+            "Bending moment Y, branched by {load_case}.",
+            GH_ParamAccess.tree);
         _outMxy = pManager.AddNumberParameter("Mxy", "Mxy",
-            "Twisting moment, branched by {load_case}.", GH_ParamAccess.tree);
+            "Twisting moment, branched by {load_case}.",
+            GH_ParamAccess.tree);
         _outMxTop = pManager.AddNumberParameter("Mx Top", "MxT",
-            "Bending moment X at top fibre, branched by {load_case}.", GH_ParamAccess.tree);
+            "Bending moment X at top fibre, branched by {load_case}.",
+            GH_ParamAccess.tree);
         _outMxBtm = pManager.AddNumberParameter("Mx Btm", "MxB",
-            "Bending moment X at bottom fibre, branched by {load_case}.", GH_ParamAccess.tree);
+            "Bending moment X at bottom fibre, branched by {load_case}.",
+            GH_ParamAccess.tree);
         _outMyTop = pManager.AddNumberParameter("My Top", "MyT",
-            "Bending moment Y at top fibre, branched by {load_case}.", GH_ParamAccess.tree);
+            "Bending moment Y at top fibre, branched by {load_case}.",
+            GH_ParamAccess.tree);
         _outMyBtm = pManager.AddNumberParameter("My Btm", "MyB",
-            "Bending moment Y at bottom fibre, branched by {load_case}.", GH_ParamAccess.tree);
+            "Bending moment Y at bottom fibre, branched by {load_case}.",
+            GH_ParamAccess.tree);
         _outVxz = pManager.AddNumberParameter("Vxz", "Vxz",
-            "Transverse shear XZ, branched by {load_case}.", GH_ParamAccess.tree);
+            "Transverse shear XZ, branched by {load_case}.",
+            GH_ParamAccess.tree);
         _outVyz = pManager.AddNumberParameter("Vyz", "Vyz",
-            "Transverse shear YZ, branched by {load_case}.", GH_ParamAccess.tree);
+            "Transverse shear YZ, branched by {load_case}.",
+            GH_ParamAccess.tree);
 
         // Nodal Forces mode (populated in Nodal Forces mode only)
         _outNodes = pManager.AddIntegerParameter("Node IDs", "N",
@@ -146,22 +158,30 @@ public class GetPlateForcesComponent : GH_AsyncComponent<GetPlateForcesComponent
             "Node locations, branched by {load_case; plate}. Only populated in Nodal Forces mode.",
             GH_ParamAccess.tree);
         _outNFx = pManager.AddNumberParameter("N Fx", "NFx",
-            "Nodal force X, branched by {load_case; plate}.", GH_ParamAccess.tree);
+            "Nodal force X, branched by {load_case; plate}.",
+            GH_ParamAccess.tree);
         _outNFy = pManager.AddNumberParameter("N Fy", "NFy",
-            "Nodal force Y, branched by {load_case; plate}.", GH_ParamAccess.tree);
+            "Nodal force Y, branched by {load_case; plate}.",
+            GH_ParamAccess.tree);
         _outNFz = pManager.AddNumberParameter("N Fz", "NFz",
-            "Nodal force Z, branched by {load_case; plate}.", GH_ParamAccess.tree);
+            "Nodal force Z, branched by {load_case; plate}.",
+            GH_ParamAccess.tree);
         _outNMx = pManager.AddNumberParameter("N Mx", "NMx",
-            "Nodal moment X, branched by {load_case; plate}.", GH_ParamAccess.tree);
+            "Nodal moment X, branched by {load_case; plate}.",
+            GH_ParamAccess.tree);
         _outNMy = pManager.AddNumberParameter("N My", "NMy",
-            "Nodal moment Y, branched by {load_case; plate}.", GH_ParamAccess.tree);
+            "Nodal moment Y, branched by {load_case; plate}.",
+            GH_ParamAccess.tree);
         _outNMz = pManager.AddNumberParameter("N Mz", "NMz",
-            "Nodal moment Z, branched by {load_case; plate}.", GH_ParamAccess.tree);
+            "Nodal moment Z, branched by {load_case; plate}.",
+            GH_ParamAccess.tree);
 
         _outWarnings = pManager.AddTextParameter("Warnings", "W",
-            "Warnings from the SpaceGass API query.", GH_ParamAccess.item);
+            "Warnings from the SpaceGass API query.",
+            GH_ParamAccess.item);
         _outStatus = pManager.AddTextParameter("Status", "S",
-            "Query status summary.", GH_ParamAccess.item);
+            "Query status summary.",
+            GH_ParamAccess.item);
     }
 
     public override void AddedToDocument(GH_Document document)

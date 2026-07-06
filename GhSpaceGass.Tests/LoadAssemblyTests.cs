@@ -961,7 +961,7 @@ public class LoadAssemblyTests
         var sw = new SgSelfWeightLoadData(lc);
 
         Assert.Equal(0, sw.AccelerationX);
-        Assert.Equal(-9.81, sw.AccelerationY);
+        Assert.Equal(-1, sw.AccelerationY);
         Assert.Equal(0, sw.AccelerationZ);
         Assert.Null(sw.LoadCategory);
         Assert.False(sw.IsZero);

@@ -231,7 +231,7 @@ public class GetMemberDisplacementsComponent : GH_AsyncComponent<GetMemberDispla
                 UserScale = scaleValue;
             }
 
-            var showValues = false;
+            var showValues = true;
             da.GetData(Parent._inShowValues, ref showValues);
             ShowValues = showValues;
         }

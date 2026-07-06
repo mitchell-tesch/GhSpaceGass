@@ -75,8 +75,9 @@ public class CreateSectionComponent : GH_Component
             GH_ParamAccess.item);
 
         // All optional except Name
+        pManager[_inMark].Optional = true;
         pManager[_inLibrary].Optional = true;
-        for (var i = 2; i < pManager.ParamCount; i++)
+        for (var i = _inName + 1; i < pManager.ParamCount; i++)
             pManager[i].Optional = true;
     }
 
@@ -101,10 +102,74 @@ public class CreateSectionComponent : GH_Component
         var library = string.Empty;
         var hasLibrary = da.GetData(_inLibrary, ref library) && !string.IsNullOrWhiteSpace(library);
 
+        // Read common optional parameters (apply in both modes)
+        double fv = 0;
+        double? areaFactor = null, iyFactor = null, izFactor = null, torsionFactor = null;
+
+        if (da.GetData(_inAreaFactor, ref fv))
+        {
+            if (fv <= 0)
+            {
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, "Area Factor must be > 0.");
+                return;
+            }
+
+            areaFactor = fv;
+        }
+
+        if (da.GetData(_inIyFactor, ref fv))
+        {
+            if (fv <= 0)
+            {
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, "Iy Factor must be > 0.");
+                return;
+            }
+
+            iyFactor = fv;
+        }
+
+        if (da.GetData(_inIzFactor, ref fv))
+        {
+            if (fv <= 0)
+            {
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, "Iz Factor must be > 0.");
+                return;
+            }
+
+            izFactor = fv;
+        }
+
+        if (da.GetData(_inTorsionFactor, ref fv))
+        {
+            if (fv <= 0)
+            {
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, "Torsion Factor must be > 0.");
+                return;
+            }
+
+            torsionFactor = fv;
+        }
+
+        string? mark = null;
+        var markStr = string.Empty;
+        if (da.GetData(_inMark, ref markStr) && !string.IsNullOrWhiteSpace(markStr))
+            mark = markStr;
+
+        bool? transposed = null;
+        var transposedVal = false;
+        if (da.GetData(_inTransposed, ref transposedVal))
+            transposed = transposedVal;
+
         SgSectionData section;
         if (hasLibrary)
         {
-            section = new SgSectionData(library, name);
+            double? libAy = null, libAz = null;
+            if (da.GetData(_inAy, ref fv)) libAy = fv;
+            if (da.GetData(_inAz, ref fv)) libAz = fv;
+
+            section = new SgSectionData(library, name,
+                areaFactor, iyFactor, izFactor, torsionFactor,
+                libAy, libAz, mark, transposed);
         }
         else
         {
@@ -120,69 +185,9 @@ public class CreateSectionComponent : GH_Component
             if (da.GetData(_inAz, ref v)) az = v;
             if (da.GetData(_inPrincipalAngle, ref v)) principalAngle = v;
 
-            section = new SgSectionData(name, area, iy, iz, j, ay, az, principalAngle);
+            section = new SgSectionData(name, area, iy, iz, j, ay, az, principalAngle,
+                areaFactor, iyFactor, izFactor, torsionFactor, mark, transposed);
         }
-
-        // Read common optional parameters (apply in both modes)
-        double fv = 0;
-        if (da.GetData(_inAreaFactor, ref fv))
-        {
-            if (fv <= 0)
-            {
-                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, "Area Factor must be > 0.");
-                return;
-            }
-
-            section.AreaFactor = fv;
-        }
-
-        if (da.GetData(_inIyFactor, ref fv))
-        {
-            if (fv <= 0)
-            {
-                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, "Iy Factor must be > 0.");
-                return;
-            }
-
-            section.IyFactor = fv;
-        }
-
-        if (da.GetData(_inIzFactor, ref fv))
-        {
-            if (fv <= 0)
-            {
-                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, "Iz Factor must be > 0.");
-                return;
-            }
-
-            section.IzFactor = fv;
-        }
-
-        if (da.GetData(_inTorsionFactor, ref fv))
-        {
-            if (fv <= 0)
-            {
-                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, "Torsion Factor must be > 0.");
-                return;
-            }
-
-            section.TorsionFactor = fv;
-        }
-
-        // Shear areas in library mode
-        if (hasLibrary)
-        {
-            if (da.GetData(_inAy, ref fv)) section.Ay = fv;
-            if (da.GetData(_inAz, ref fv)) section.Az = fv;
-        }
-
-        var mark = string.Empty;
-        if (da.GetData(_inMark, ref mark) && !string.IsNullOrWhiteSpace(mark))
-            section.Mark = mark;
-
-        var transposed = false;
-        if (da.GetData(_inTransposed, ref transposed))
-            section.Transposed = transposed;
 
         da.SetData(_outSection, new GH_SgSection(section));
     }

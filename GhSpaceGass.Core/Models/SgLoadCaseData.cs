@@ -21,6 +21,6 @@ public class SgLoadCaseData
     /// <summary>Optional descriptive notes for the load case.</summary>
     public string? Notes { get; }
 
-    /// <summary>Unique key for deduplication: case-insensitive name.</summary>
+    /// <summary>Unique key for deduplication (case-insensitivity enforced by consuming dictionaries).</summary>
     public string Key => Name;
 }

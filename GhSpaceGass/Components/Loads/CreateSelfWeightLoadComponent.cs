@@ -41,8 +41,8 @@ public class CreateSelfWeightLoadComponent : GH_Component
             "Gravity acceleration in global X direction, in job acceleration units (default: 0).",
             GH_ParamAccess.item, 0.0);
         _inAccY = pManager.AddNumberParameter("Acceleration Y", "AccY",
-            "Gravity acceleration in global Y direction, in job acceleration units (default: -9.81).",
-            GH_ParamAccess.item, -9.81);
+            "Gravity acceleration in global Y direction (in g's, default: -1).",
+            GH_ParamAccess.item, -1.0);
         _inAccZ = pManager.AddNumberParameter("Acceleration Z", "AccZ",
             "Gravity acceleration in global Z direction, in job acceleration units (default: 0).",
             GH_ParamAccess.item, 0.0);
@@ -65,7 +65,7 @@ public class CreateSelfWeightLoadComponent : GH_Component
     {
         GH_SgLoadCase loadCaseGoo = null;
         GH_SgLoadCategory loadCategoryGoo = null;
-        double accX = 0, accY = -9.81, accZ = 0;
+        double accX = 0, accY = -1, accZ = 0;
 
         if (!da.GetData(_inLoadCase, ref loadCaseGoo)) return;
         da.GetData(_inLoadCategory, ref loadCategoryGoo);
