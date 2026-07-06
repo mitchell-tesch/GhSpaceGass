@@ -1,4 +1,4 @@
-﻿using SpaceGassApi.Models;
+using SpaceGassApi.Models;
 
 namespace GhSpaceGass.Core.Models;
 
@@ -10,10 +10,22 @@ namespace GhSpaceGass.Core.Models;
 public class SgSectionData
 {
     /// <summary>Create a library section (looked up from SpaceGass).</summary>
-    public SgSectionData(string library, string name)
+    public SgSectionData(string library, string name,
+        double? areaFactor = null, double? iyFactor = null, double? izFactor = null,
+        double? torsionFactor = null, double? ay = null, double? az = null,
+        string? mark = null, bool? transposed = null, AngleType? angleType = null)
     {
         Library = library ?? throw new ArgumentNullException(nameof(library));
         Name = name ?? throw new ArgumentNullException(nameof(name));
+        AreaFactor = areaFactor;
+        IyFactor = iyFactor;
+        IzFactor = izFactor;
+        TorsionFactor = torsionFactor;
+        Ay = ay;
+        Az = az;
+        Mark = mark;
+        Transposed = transposed;
+        AngleType = angleType;
     }
 
     /// <summary>Create a custom section (user-defined properties).</summary>
@@ -21,7 +33,8 @@ public class SgSectionData
         double? area = null, double? iy = null, double? iz = null, double? j = null,
         double? ay = null, double? az = null, double? principalAngle = null,
         double? areaFactor = null, double? iyFactor = null, double? izFactor = null,
-        double? torsionFactor = null, string? mark = null)
+        double? torsionFactor = null, string? mark = null,
+        bool? transposed = null, AngleType? angleType = null)
     {
         Library = null; // custom mode
         Name = name ?? throw new ArgumentNullException(nameof(name));
@@ -37,6 +50,8 @@ public class SgSectionData
         IzFactor = izFactor;
         TorsionFactor = torsionFactor;
         Mark = mark;
+        Transposed = transposed;
+        AngleType = angleType;
     }
 
     /// <summary>The SpaceGass section library (e.g., "Aust300"). Null = custom section.</summary>
@@ -50,47 +65,47 @@ public class SgSectionData
 
     // Custom section properties (only used when IsLibrary == false)
     /// <summary>Cross-sectional area.</summary>
-    public double? Area { get; set; }
+    public double? Area { get; }
 
     /// <summary>Second moment of area about local Y axis.</summary>
-    public double? Iy { get; set; }
+    public double? Iy { get; }
 
     /// <summary>Second moment of area about local Z axis.</summary>
-    public double? Iz { get; set; }
+    public double? Iz { get; }
 
     /// <summary>Torsion constant.</summary>
-    public double? J { get; set; }
+    public double? J { get; }
 
     /// <summary>Principal axis rotation angle.</summary>
-    public double? PrincipalAngle { get; set; }
+    public double? PrincipalAngle { get; }
 
     // Properties that apply in BOTH library and custom modes
     /// <summary>Optional mark/label for the section in the model.</summary>
-    public string? Mark { get; set; }
+    public string? Mark { get; }
 
     /// <summary>Angle section orientation.</summary>
-    public AngleType? AngleType { get; set; }
+    public AngleType? AngleType { get; }
 
     /// <summary>Area modification factor (must be > 0 when set).</summary>
-    public double? AreaFactor { get; set; }
+    public double? AreaFactor { get; }
 
     /// <summary>Shear area in local Y direction.</summary>
-    public double? Ay { get; set; }
+    public double? Ay { get; }
 
     /// <summary>Shear area in local Z direction.</summary>
-    public double? Az { get; set; }
+    public double? Az { get; }
 
     /// <summary>Iy modification factor (must be > 0 when set).</summary>
-    public double? IyFactor { get; set; }
+    public double? IyFactor { get; }
 
     /// <summary>Iz modification factor (must be > 0 when set).</summary>
-    public double? IzFactor { get; set; }
+    public double? IzFactor { get; }
 
     /// <summary>Torsion constant modification factor (must be > 0 when set).</summary>
-    public double? TorsionFactor { get; set; }
+    public double? TorsionFactor { get; }
 
     /// <summary>Whether the section is transposed.</summary>
-    public bool? Transposed { get; set; }
+    public bool? Transposed { get; }
 
     /// <summary>Unique key for deduplication (ADR-0006).</summary>
     public string Key => IsLibrary

@@ -225,8 +225,8 @@ public class ModelAssemblerTests
     {
         SetupApiReturns();
 
-        var sec1 = new SgSectionData("Aust300", "360 UB 44.7") { AreaFactor = 0.8 };
-        var sec2 = new SgSectionData("Aust300", "360 UB 44.7") { AreaFactor = 1.0 };
+        var sec1 = new SgSectionData("Aust300", "360 UB 44.7", areaFactor: 0.8);
+        var sec2 = new SgSectionData("Aust300", "360 UB 44.7", areaFactor: 1.0);
         var mat = new SgMaterialData("Aust", "STEEL");
 
         var members = new[]

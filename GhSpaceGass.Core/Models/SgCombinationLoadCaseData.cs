@@ -73,6 +73,6 @@ public class SgCombinationLoadCaseData
     /// <summary>The constituent load cases and their scale factors.</summary>
     public IReadOnlyList<SgCombinationConstituent> Constituents { get; }
 
-    /// <summary>Unique key for deduplication: case-insensitive name.</summary>
+    /// <summary>Unique key for deduplication (case-insensitivity enforced by consuming dictionaries).</summary>
     public string Key => Name;
 }

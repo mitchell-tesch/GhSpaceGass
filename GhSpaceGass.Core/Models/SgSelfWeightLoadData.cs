@@ -10,7 +10,7 @@ public class SgSelfWeightLoadData
     public SgSelfWeightLoadData(
         SgLoadCaseData loadCase,
         double accelerationX = 0,
-        double accelerationY = -9.81,
+        double accelerationY = -1,
         double accelerationZ = 0,
         SgLoadCategoryData? loadCategory = null)
     {
@@ -30,7 +30,7 @@ public class SgSelfWeightLoadData
     /// <summary>Gravity acceleration in global X direction (in g's).</summary>
     public double AccelerationX { get; }
 
-    /// <summary>Gravity acceleration in global Y direction (in g's). Default: -9.81</summary>
+    /// <summary>Gravity acceleration in global Y direction (in g's). Default: -1</summary>
     public double AccelerationY { get; }
 
     /// <summary>Gravity acceleration in global Z direction (in g's).</summary>
