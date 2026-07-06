@@ -219,8 +219,9 @@ public class SpaceGassSession : IDisposable
             var status = await _api!.GetJobStatusAsync(ct).ConfigureAwait(false);
             return status.State?.IsOpen ?? false;
         }
-        catch
+        catch (Exception)
         {
+            // API errors (network, 404, deserialization) treated as "no job open"
             return false;
         }
     }
@@ -846,7 +847,8 @@ public class SpaceGassSession : IDisposable
             if (entries.TryGetValue(nodeId, out var existing))
                 return existing;
             if (!nodeIdToPoint.TryGetValue(nodeId, out var point))
-                return null!;
+                throw new InvalidOperationException(
+                    $"Node {nodeId} not found in model — ensure caller checks before calling GetOrCreateEntry.");
             var entry = new SgNodeLoadEntry(nodeId, point);
             entries[nodeId] = entry;
             return entry;
@@ -987,7 +989,8 @@ public class SpaceGassSession : IDisposable
             if (entries.TryGetValue(memberId, out var existing))
                 return existing;
             if (!model.MemberMap.TryGetValue(memberId, out var geom))
-                return null!;
+                throw new InvalidOperationException(
+                    $"Member {memberId} not found in model — ensure caller checks before calling GetOrCreateEntry.");
             var entry = new SgMemberLoadEntry(memberId, geom.Start, geom.End);
             entries[memberId] = entry;
             return entry;
@@ -1169,7 +1172,8 @@ public class SpaceGassSession : IDisposable
             if (entries.TryGetValue(plateId, out var existing))
                 return existing;
             if (!model.PlateMap.TryGetValue(plateId, out var corners))
-                return null!;
+                throw new InvalidOperationException(
+                    $"Plate {plateId} not found in model — ensure caller checks before calling GetOrCreateEntry.");
             var entry = new SgPlateLoadEntry(plateId, corners);
             entries[plateId] = entry;
             return entry;
@@ -1325,7 +1329,8 @@ public class SpaceGassSession : IDisposable
     private async Task<AnalysisRun> PollForAnalysisCompletionAsync(
         Guid runId, Action<string>? onProgress, CancellationToken ct)
     {
-        while (true)
+        var deadline = DateTime.UtcNow + TimeSpan.FromHours(1);
+        while (DateTime.UtcNow < deadline)
         {
             ct.ThrowIfCancellationRequested();
             await Task.Delay(AnalysisPollInterval, ct).ConfigureAwait(false);
@@ -1362,6 +1367,8 @@ public class SpaceGassSession : IDisposable
                 or AnalysisRunStatus.Cancelled)
                 return status;
         }
+
+        throw new TimeoutException("Analysis did not complete within the 1-hour safety timeout.");
     }
 
     /// <summary>

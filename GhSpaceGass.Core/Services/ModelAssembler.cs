@@ -253,7 +253,6 @@ public class ModelAssembler
         var effectiveLumpedMassLoadsForOrphan = lumpedMassLoads ?? Array.Empty<SgLumpedMassLoadData>();
         var effectivePrescribedDisplacementsForOrphan = prescribedDisplacements ?? Array.Empty<SgPrescribedDisplacementData>();
         var effectiveConstraintsForOrphan = nodeConstraints ?? Array.Empty<SgNodeConstraintData>();
-        var orphanPoints = new List<SgPoint3D>();
 
         if (effectiveRestraints.Count > 0 || effectiveNodeLoads.Count > 0
             || effectiveLumpedMassLoadsForOrphan.Count > 0
@@ -266,7 +265,6 @@ public class ModelAssembler
             void CheckOrphan(SgPoint3D point, string description)
             {
                 if (IsPointInGrid(point, memberGrid, tolerance)) return;
-                orphanPoints.Add(point);
                 allPoints.Add(point);
                 // Add to grid incrementally instead of rebuilding the entire grid
                 var key = QuantiseKey(point, tolerance);
@@ -1789,8 +1787,8 @@ public class ModelAssembler
     /// </summary>
     private static (long X, long Y, long Z) QuantiseKey(SgPoint3D pt, double tolerance)
     {
-        // Use half-tolerance grid so adjacent cells still catch coincident points
-        // handled via multi-cell probe in DeduplicatePoints
+        // Cell size equals tolerance; coincident points span at most ±1 cell in each axis.
+        // Multi-cell probe in DeduplicatePoints handles cross-cell coincidence.
         return (
             (long)Math.Floor(pt.X / tolerance),
             (long)Math.Floor(pt.Y / tolerance),

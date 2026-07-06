@@ -15,7 +15,7 @@ public class SgPlatePressureLoadData
         LoadAxes axes = LoadAxes.Local,
         SgLoadCategoryData? loadCategory = null)
     {
-        PlateNodes = plateNodes ?? throw new ArgumentNullException(nameof(plateNodes));
+        PlateNodes = (SgPoint3D[])(plateNodes ?? throw new ArgumentNullException(nameof(plateNodes))).Clone();
         LoadCase = loadCase ?? throw new ArgumentNullException(nameof(loadCase));
         Px = px;
         Py = py;

@@ -23,7 +23,7 @@ public class SgPlateData
                 "Plate must have exactly 3 or 4 corner nodes.",
                 nameof(nodes));
 
-        Nodes = nodes;
+        Nodes = (SgPoint3D[])nodes.Clone();
         Material = material ?? throw new ArgumentNullException(nameof(material));
         ActualThickness = actualThickness;
         BendingThickness = bendingThickness;

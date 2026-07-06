@@ -1,6 +1,5 @@
 using System;
 using System.Drawing;
-using GhSpaceGass.Core.Models;
 using GhSpaceGass.Core.Models.Visuals;
 using Rhino.Display;
 using Rhino.Geometry;

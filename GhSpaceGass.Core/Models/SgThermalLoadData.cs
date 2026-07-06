@@ -27,7 +27,7 @@ public class SgThermalLoadData
         LoadCategory = loadCategory;
         MemberStart = memberStart;
         MemberEnd = memberEnd;
-        PlateNodes = plateNodes;
+        PlateNodes = (SgPoint3D[]?)plateNodes?.Clone();
     }
 
     /// <summary>Creates a thermal load for a member.</summary>
