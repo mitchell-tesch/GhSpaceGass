@@ -63,7 +63,7 @@ public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsCompo
             GH_ParamAccess.item);
         _inShowValues = pManager.AddBooleanParameter("Show Values?", "SV?",
             "When true, display numeric reaction values adjacent to each arrow.",
-            GH_ParamAccess.item, false);
+            GH_ParamAccess.item, true);
         
         pManager[_inPoints].Optional = true;
         pManager[_inLoadCases].Optional = true;
@@ -216,7 +216,7 @@ public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsCompo
                 UserScale = scaleValue;
             }
 
-            var showValues = false;
+            var showValues = true;
             da.GetData(Parent._inShowValues, ref showValues);
             ShowValues = showValues;
         }

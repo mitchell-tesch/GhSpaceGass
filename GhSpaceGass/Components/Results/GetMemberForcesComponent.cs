@@ -107,7 +107,7 @@ public class GetMemberForcesComponent : GH_AsyncComponent<GetMemberForcesCompone
             GH_ParamAccess.item);
         _inShowValues = pManager.AddBooleanParameter("Show Values?", "SV?",
             "When true, display values at local extrema on the diagram.",
-            GH_ParamAccess.item, false);
+            GH_ParamAccess.item, true);
 
         pManager[_inMembers].Optional = true;
         pManager[_inLoadCases].Optional = true;
@@ -156,7 +156,8 @@ public class GetMemberForcesComponent : GH_AsyncComponent<GetMemberForcesCompone
             "Warnings from the SpaceGass API query (multiline text).",
             GH_ParamAccess.item);
         _outStatus = pManager.AddTextParameter("Status", "S",
-            "Query status summary.", GH_ParamAccess.item);
+            "Query status summary.",
+            GH_ParamAccess.item);
     }
 
     public override void AddedToDocument(GH_Document document)
@@ -293,7 +294,7 @@ public class GetMemberForcesComponent : GH_AsyncComponent<GetMemberForcesCompone
                     .Select(s => s.Value)
                     .ToList();
 
-            var mode = 0;
+            var mode = 1;
             da.GetData(Parent._inMode, ref mode);
             Mode = mode;
 
@@ -310,7 +311,7 @@ public class GetMemberForcesComponent : GH_AsyncComponent<GetMemberForcesCompone
                 UserScale = scaleVal;
             }
 
-            var showValues = false;
+            var showValues = true;
             da.GetData(Parent._inShowValues, ref showValues);
             ShowValues = showValues;
         }

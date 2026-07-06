@@ -72,7 +72,7 @@ public class GetNodeDisplacementsComponent : GH_AsyncComponent<GetNodeDisplaceme
             GH_ParamAccess.item);
         _inShowValues = pManager.AddBooleanParameter("Show Values?", "SV?",
             "When true, display resultant displacement magnitude adjacent to each vector.",
-            GH_ParamAccess.item, false);
+            GH_ParamAccess.item, true);
 
         pManager[_inPoints].Optional = true;
         pManager[_inLoadCases].Optional = true;
@@ -221,7 +221,7 @@ public class GetNodeDisplacementsComponent : GH_AsyncComponent<GetNodeDisplaceme
                 UserScale = scaleValue;
             }
 
-            var showValues = false;
+            var showValues = true;
             da.GetData(Parent._inShowValues, ref showValues);
             ShowValues = showValues;
         }
