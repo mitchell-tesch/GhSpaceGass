@@ -1845,23 +1845,30 @@ public class SpaceGassSession : IDisposable
         if (memberFilter == null || memberFilter.Count == 0)
             return null;
 
+        // Build a reverse lookup: (startNodeId, endNodeId) → memberId for O(1) resolution
+        var reverseLookup = new Dictionary<(int, int), int>();
+        foreach (var kvp in model.MemberMap)
+        {
+            if (model.NodeMap.TryGetValue(kvp.Value.Start, out var sId) &&
+                model.NodeMap.TryGetValue(kvp.Value.End, out var eId))
+                reverseLookup.TryAdd((sId, eId), kvp.Key);
+        }
+
         var memberIds = new List<int>();
         foreach (var (start, end) in memberFilter)
         {
-            var found = false;
-            foreach (var kvp in model.MemberMap)
-                if (kvp.Value.Start.IsCoincident(start, 0.001) &&
-                    kvp.Value.End.IsCoincident(end, 0.001))
-                {
-                    memberIds.Add(kvp.Key);
-                    found = true;
-                    break;
-                }
-
-            if (!found)
+            if (model.TryGetNodeId(start, out var startNodeId) &&
+                model.TryGetNodeId(end, out var endNodeId) &&
+                reverseLookup.TryGetValue((startNodeId, endNodeId), out var memberId))
+            {
+                memberIds.Add(memberId);
+            }
+            else
+            {
                 warnings.Add(
                     $"Filter member ({start.X:F3},{start.Y:F3},{start.Z:F3}) → ({end.X:F3},{end.Y:F3},{end.Z:F3}) " +
                     "does not match any model member — skipped.");
+            }
         }
 
         return memberIds.Count > 0 ? string.Join(",", memberIds) : null;

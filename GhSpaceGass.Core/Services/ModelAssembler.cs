@@ -263,70 +263,35 @@ public class ModelAssembler
             // Build a temporary grid from member endpoints for coincidence check
             var (_, memberGrid) = DeduplicatePoints(allPoints, tolerance);
 
-            foreach (var r in effectiveRestraints)
-                if (!IsPointInGrid(r.Point, memberGrid, tolerance))
-                {
-                    orphanPoints.Add(r.Point);
-                    allPoints.Add(r.Point);
-                    result.Warnings.Add(
-                        $"Orphan restraint point ({r.Point.X:F3}, {r.Point.Y:F3}, {r.Point.Z:F3}) " +
-                        "does not coincide with any member endpoint — a standalone node was created.");
-                }
+            void CheckOrphan(SgPoint3D point, string description)
+            {
+                if (IsPointInGrid(point, memberGrid, tolerance)) return;
+                orphanPoints.Add(point);
+                allPoints.Add(point);
+                // Add to grid incrementally instead of rebuilding the entire grid
+                var key = QuantiseKey(point, tolerance);
+                memberGrid.TryAdd(key, point);
+                result.Warnings.Add(
+                    $"Orphan {description} ({point.X:F3}, {point.Y:F3}, {point.Z:F3}) " +
+                    "does not coincide with any member endpoint — a standalone node was created.");
+            }
 
-            // Rebuild grid after restraint orphans are added
-            if (orphanPoints.Count > 0)
-                (_, memberGrid) = DeduplicatePoints(allPoints, tolerance);
+            foreach (var r in effectiveRestraints)
+                CheckOrphan(r.Point, "restraint point");
 
             foreach (var nl in effectiveNodeLoads)
-                if (!IsPointInGrid(nl.Point, memberGrid, tolerance))
-                {
-                    allPoints.Add(nl.Point);
-                    result.Warnings.Add(
-                        $"Orphan node load point ({nl.Point.X:F3}, {nl.Point.Y:F3}, {nl.Point.Z:F3}) " +
-                        "does not coincide with any member endpoint — a standalone node was created.");
-                    // Rebuild grid to include this orphan for subsequent checks
-                    (_, memberGrid) = DeduplicatePoints(allPoints, tolerance);
-                }
+                CheckOrphan(nl.Point, "node load point");
 
             foreach (var lm in effectiveLumpedMassLoadsForOrphan)
-                if (!IsPointInGrid(lm.Point, memberGrid, tolerance))
-                {
-                    allPoints.Add(lm.Point);
-                    result.Warnings.Add(
-                        $"Orphan lumped mass load point ({lm.Point.X:F3}, {lm.Point.Y:F3}, {lm.Point.Z:F3}) " +
-                        "does not coincide with any member endpoint — a standalone node was created.");
-                    (_, memberGrid) = DeduplicatePoints(allPoints, tolerance);
-                }
+                CheckOrphan(lm.Point, "lumped mass load point");
 
             foreach (var pd in effectivePrescribedDisplacementsForOrphan)
-                if (!IsPointInGrid(pd.Point, memberGrid, tolerance))
-                {
-                    allPoints.Add(pd.Point);
-                    result.Warnings.Add(
-                        $"Orphan prescribed displacement point ({pd.Point.X:F3}, {pd.Point.Y:F3}, {pd.Point.Z:F3}) " +
-                        "does not coincide with any member endpoint — a standalone node was created.");
-                    (_, memberGrid) = DeduplicatePoints(allPoints, tolerance);
-                }
+                CheckOrphan(pd.Point, "prescribed displacement point");
 
             foreach (var nc in effectiveConstraintsForOrphan)
             {
-                if (!IsPointInGrid(nc.SlavePoint, memberGrid, tolerance))
-                {
-                    allPoints.Add(nc.SlavePoint);
-                    result.Warnings.Add(
-                        $"Orphan constraint slave point ({nc.SlavePoint.X:F3}, {nc.SlavePoint.Y:F3}, {nc.SlavePoint.Z:F3}) " +
-                        "does not coincide with any member endpoint — a standalone node was created.");
-                    (_, memberGrid) = DeduplicatePoints(allPoints, tolerance);
-                }
-
-                if (!IsPointInGrid(nc.MasterPoint, memberGrid, tolerance))
-                {
-                    allPoints.Add(nc.MasterPoint);
-                    result.Warnings.Add(
-                        $"Orphan constraint master point ({nc.MasterPoint.X:F3}, {nc.MasterPoint.Y:F3}, {nc.MasterPoint.Z:F3}) " +
-                        "does not coincide with any member endpoint — a standalone node was created.");
-                    (_, memberGrid) = DeduplicatePoints(allPoints, tolerance);
-                }
+                CheckOrphan(nc.SlavePoint, "constraint slave point");
+                CheckOrphan(nc.MasterPoint, "constraint master point");
             }
         }
 
@@ -1468,10 +1433,31 @@ public class ModelAssembler
             }
         }
 
+        // ── Build plate node-ID lookup for pressure and thermal loads ──────
+        Dictionary<string, int>? plateLookup = null;
+        if (effectivePlatePressureLoads.Count > 0 || effectiveThermalLoads.Any(t => t.ElementType != ThermalElementType.Member))
+        {
+            plateLookup = new Dictionary<string, int>();
+            foreach (var kvp in model.PlateMap)
+            {
+                var nodeIds = new List<int>();
+                foreach (var pn in kvp.Value)
+                {
+                    var pc = TryResolveCanonicalPoint(pn, pointToCanonical, tolerance);
+                    if (pc != null && model.NodeMap.TryGetValue(pc.Value, out var pnId))
+                        nodeIds.Add(pnId);
+                }
+                if (nodeIds.Count == kvp.Value.Length)
+                {
+                    var key = string.Join(",", nodeIds);
+                    plateLookup.TryAdd(key, kvp.Key);
+                }
+            }
+        }
+
         // ── Step 13: Create plate pressure loads ──────────────────────────
         if (effectivePlatePressureLoads.Count > 0)
         {
-            // Build reverse plate lookup: resolve plate corner node IDs → plate ID
             var platePressureCreates = new List<PlatePressureLoadCreate>();
             foreach (var pp in effectivePlatePressureLoads)
             {
@@ -1496,25 +1482,11 @@ public class ModelAssembler
                     continue;
                 }
 
-                // Find plate ID by matching node IDs
+                // Find plate ID by matching node IDs via lookup
                 int? plateId = null;
-                foreach (var kvp in model.PlateMap)
-                {
-                    var plateNodeIds = new List<int>();
-                    foreach (var pn in kvp.Value)
-                    {
-                        var pc = TryResolveCanonicalPoint(pn, pointToCanonical, tolerance);
-                        if (pc != null && model.NodeMap.TryGetValue(pc.Value, out var pnId))
-                            plateNodeIds.Add(pnId);
-                    }
-
-                    if (plateNodeIds.Count == resolvedNodeIds.Count &&
-                        plateNodeIds.SequenceEqual(resolvedNodeIds))
-                    {
-                        plateId = kvp.Key;
-                        break;
-                    }
-                }
+                var nodeIdKey = string.Join(",", resolvedNodeIds);
+                if (plateLookup != null && plateLookup.TryGetValue(nodeIdKey, out var foundPlateId))
+                    plateId = foundPlateId;
 
                 if (plateId == null)
                 {
@@ -1613,22 +1585,9 @@ public class ModelAssembler
 
                     if (resolved)
                     {
-                        foreach (var kvp in model.PlateMap)
-                        {
-                            var plateNodeIds = new List<int>();
-                            foreach (var pn in kvp.Value)
-                            {
-                                var pc = TryResolveCanonicalPoint(pn, pointToCanonical, tolerance);
-                                if (pc != null && model.NodeMap.TryGetValue(pc.Value, out var pnId))
-                                    plateNodeIds.Add(pnId);
-                            }
-                            if (plateNodeIds.Count == resolvedNodeIds.Count &&
-                                plateNodeIds.SequenceEqual(resolvedNodeIds))
-                            {
-                                elementId = kvp.Key;
-                                break;
-                            }
-                        }
+                        var nodeIdKey = string.Join(",", resolvedNodeIds);
+                        if (plateLookup != null && plateLookup.TryGetValue(nodeIdKey, out var foundPlateId))
+                            elementId = foundPlateId;
                     }
 
                     if (elementId == null)
@@ -1736,15 +1695,14 @@ public class ModelAssembler
     {
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var unique = new List<T>();
-        var duplicateKeys = new List<string>();
+        var duplicateKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var item in items)
         {
             var key = keySelector(item);
             if (seen.Add(key))
                 unique.Add(item);
-            else if (!duplicateKeys.Contains(key))
-                duplicateKeys.Add(key);
+            else duplicateKeys.Add(key);
         }
 
         foreach (var dup in duplicateKeys)
