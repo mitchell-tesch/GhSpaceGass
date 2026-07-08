@@ -83,21 +83,22 @@ public class GetMemberForcesComponent : GH_AsyncComponent<GetMemberForcesCompone
             "Model", "M",
             "The assembled and analysed SpaceGass model.",
             GH_ParamAccess.item);
-        _inMembers = pManager.AddLineParameter("Members", "Mb",
-            "Optional: filter forces to these member geometries only.",
+        _inMembers = pManager.AddIntegerParameter("Member IDs", "MIds",
+            "Optional: filter forces to specific member IDs.",
             GH_ParamAccess.list);
         _inLoadCases = pManager.AddTextParameter("Load Cases", "LC",
             "Optional: filter forces to these load case names only.",
             GH_ParamAccess.list);
         _inMode = pManager.AddParameter(
-            new Param_SgIntegerOption("Mode", ValueListHelper.ForceModeOptions, defaultValue: 1, autoCreate: true),
+            new Param_SgIntegerOption("Mode", ValueListHelper.ForceModeOptions,
+                defaultIndex: 1, defaultValue: 1, autoCreate: true),
             "Mode", "Mo",
             "End Forces=0 (forces at each member end), Intermediate=1 (forces at stations along member).\n" +
             "Default: Intermediate",
             GH_ParamAccess.item);
         _inVisual = pManager.AddParameter(
             new Param_SgIntegerOption("Visual", ValueListHelper.MemberForceVisualOptions,
-                defaultValue: 5, autoCreate: true),
+                defaultIndex: 6, defaultValue: 5, autoCreate: true),
             "Visual", "V",
             "Force component to display as a diagram (Intermediate mode).\n" +
             "Fx=0, Fy=1, Fz=2, Mx=3, My=4, Mz=5.\nDefault: Mz.",
@@ -242,7 +243,7 @@ public class GetMemberForcesComponent : GH_AsyncComponent<GetMemberForcesCompone
         }
 
         private SgModelData InputModel { get; set; }
-        private List<(SgPoint3D Start, SgPoint3D End)> MemberFilter { get; set; }
+        private List<int> MemberFilter { get; set; }
         private List<string> LoadCaseFilter { get; set; }
         private int Mode { get; set; }
         private int VisualIndex { get; set; } = 5;
@@ -278,14 +279,12 @@ public class GetMemberForcesComponent : GH_AsyncComponent<GetMemberForcesCompone
                 return;
             InputModel = modelGoo.Value;
 
-            var lines = new List<GH_Line>();
-            if (da.GetDataList(Parent._inMembers, lines) && lines.Count > 0)
-                MemberFilter = lines
-                    .Where(l => l?.Value != null)
-                    .Select(l => (
-                        new SgPoint3D(l.Value.From.X, l.Value.From.Y, l.Value.From.Z),
-                        new SgPoint3D(l.Value.To.X, l.Value.To.Y, l.Value.To.Z)))
-                    .ToList();
+            var memberIds = new List<GH_Integer>();
+            da.GetDataList(Parent._inMembers, memberIds);
+            MemberFilter = new List<int>();
+            foreach (var g in memberIds)
+                if (g != null)
+                    MemberFilter.Add(g.Value);
 
             var lcNames = new List<GH_String>();
             if (da.GetDataList(Parent._inLoadCases, lcNames) && lcNames.Count > 0)
@@ -565,7 +564,19 @@ public class GetMemberForcesComponent : GH_AsyncComponent<GetMemberForcesCompone
             {
                 var memberMapSg = new Dictionary<int, (SgPoint3D Start, SgPoint3D End)>();
                 foreach (var kvp in InputModel.MemberMap) memberMapSg[kvp.Key] = kvp.Value;
-                var bboxDiag = PreviewScaleHelper.ComputeBboxDiagonal(InputModel.NodeMap.Keys);
+
+                // Compute bbox from members that have results (not the full model)
+                var resultMemberIds = new HashSet<int>(result.Forces.Select(f => f.MemberId));
+                var resultPoints = new List<SgPoint3D>();
+                foreach (var id in resultMemberIds)
+                    if (InputModel.MemberMap.TryGetValue(id, out var ep))
+                    {
+                        resultPoints.Add(ep.Start);
+                        resultPoints.Add(ep.End);
+                    }
+                var bboxDiag = PreviewScaleHelper.ComputeBboxDiagonal(
+                    resultPoints.Count > 0 ? resultPoints : (IEnumerable<SgPoint3D>)InputModel.NodeMap.Keys);
+
                 var diagramResult = ForceDiagramBuilder.BuildSingleComponent(
                     result.Forces, memberMapSg, bboxDiag, VisualIndex, UserScale);
 

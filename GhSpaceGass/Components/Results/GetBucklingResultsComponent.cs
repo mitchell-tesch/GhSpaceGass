@@ -57,8 +57,8 @@ public class GetBucklingResultsComponent : GH_AsyncComponent<GetBucklingResultsC
             "Model", "M",
             "The assembled and analysed SpaceGass model.",
             GH_ParamAccess.item);
-        _inMembers = pManager.AddLineParameter("Members", "Mb",
-            "Optional: filter effective lengths to these member geometries only.",
+        _inMembers = pManager.AddIntegerParameter("Member IDs", "MIds",
+            "Optional: filter effective lengths to specific member IDs.",
             GH_ParamAccess.list);
         _inModes = pManager.AddIntegerParameter("Modes", "Mo",
             "Optional: filter results to these buckling mode numbers only.",
@@ -139,7 +139,7 @@ public class GetBucklingResultsComponent : GH_AsyncComponent<GetBucklingResultsC
         }
 
         private SgModelData InputModel { get; set; }
-        private List<(SgPoint3D Start, SgPoint3D End)> MemberFilter { get; set; }
+        private List<int> MemberFilter { get; set; }
         private List<int> ModesFilter { get; set; }
         private List<string> LoadCaseFilter { get; set; }
 
@@ -176,14 +176,12 @@ public class GetBucklingResultsComponent : GH_AsyncComponent<GetBucklingResultsC
                 return;
             InputModel = modelGoo.Value;
 
-            var lines = new List<GH_Line>();
-            if (da.GetDataList(Parent._inMembers, lines) && lines.Count > 0)
-                MemberFilter = lines
-                    .Where(l => l?.Value != null)
-                    .Select(l => (
-                        new SgPoint3D(l.Value.From.X, l.Value.From.Y, l.Value.From.Z),
-                        new SgPoint3D(l.Value.To.X, l.Value.To.Y, l.Value.To.Z)))
-                    .ToList();
+            var memberIds = new List<GH_Integer>();
+            da.GetDataList(Parent._inMembers, memberIds);
+            MemberFilter = new List<int>();
+            foreach (var g in memberIds)
+                if (g != null)
+                    MemberFilter.Add(g.Value);
 
             var modes = new List<GH_Integer>();
             if (da.GetDataList(Parent._inModes, modes) && modes.Count > 0)

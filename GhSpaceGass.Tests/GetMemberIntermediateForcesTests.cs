@@ -158,7 +158,7 @@ public class GetMemberIntermediateForcesTests
             });
 
         var result = await session.GetMemberIntermediateForcesAsync(model,
-            new[] { (new SgPoint3D(0, 0, 0), new SgPoint3D(10, 0, 0)) });
+            new[] { 1 });
 
         Assert.Single(result.Forces);
         await _api.Received(1).GetMemberIntermediateForcesAsync("1", null, Arg.Any<CancellationToken>());
@@ -176,7 +176,7 @@ public class GetMemberIntermediateForcesTests
             .Returns(new List<MemberIntermediateForce>());
 
         var result = await session.GetMemberIntermediateForcesAsync(model,
-            new[] { (new SgPoint3D(0, 0, 0), new SgPoint3D(99, 0, 0)) });
+            new[] { 99 });
 
         Assert.Contains(result.Warnings, w => w.Contains("does not match any model member"));
     }

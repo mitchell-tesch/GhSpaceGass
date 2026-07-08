@@ -54,8 +54,8 @@ public class GetDynamicFrequencyResultsComponent : GH_AsyncComponent<GetDynamicF
             "Model", "M",
             "The assembled and analysed SpaceGass model.",
             GH_ParamAccess.item);
-        _inNodes = pManager.AddPointParameter("Points", "Pt",
-            "Optional: filter mode shapes to these node locations only.",
+        _inNodes = pManager.AddIntegerParameter("Node IDs", "NIds",
+            "Optional: filter mode shapes to specific node IDs.",
             GH_ParamAccess.list);
         _inModes = pManager.AddIntegerParameter("Modes", "Mo",
             "Optional: filter results to these mode numbers only.",
@@ -142,7 +142,7 @@ public class GetDynamicFrequencyResultsComponent : GH_AsyncComponent<GetDynamicF
         }
 
         private SgModelData InputModel { get; set; }
-        private List<SgPoint3D> NodesFilter { get; set; }
+        private List<int> NodesFilter { get; set; }
         private List<int> ModesFilter { get; set; }
         private List<string> LoadCaseFilter { get; set; }
 
@@ -181,12 +181,12 @@ public class GetDynamicFrequencyResultsComponent : GH_AsyncComponent<GetDynamicF
                 return;
             InputModel = modelGoo.Value;
 
-            var points = new List<GH_Point>();
-            if (da.GetDataList(Parent._inNodes, points) && points.Count > 0)
-                NodesFilter = points
-                    .Where(p => p?.Value != null && p.Value != Point3d.Unset)
-                    .Select(p => new SgPoint3D(p.Value.X, p.Value.Y, p.Value.Z))
-                    .ToList();
+            var nodeIds = new List<GH_Integer>();
+            da.GetDataList(Parent._inNodes, nodeIds);
+            NodesFilter = new List<int>();
+            foreach (var g in nodeIds)
+                if (g != null)
+                    NodesFilter.Add(g.Value);
 
             var modes = new List<GH_Integer>();
             if (da.GetDataList(Parent._inModes, modes) && modes.Count > 0)

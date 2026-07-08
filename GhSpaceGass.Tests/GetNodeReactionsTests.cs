@@ -185,7 +185,7 @@ public class GetNodeReactionsTests
         Assert.Equal(0.0, r.Mz);
     }
 
-    // ── Node filter — resolves points to IDs ──────────────────────────
+    // ── Node filter — passes IDs to API ─────────────────────────────────
 
     [Fact]
     public async Task GetNodeReactions_WithNodeFilter_PassesNodeIdsToApi()
@@ -195,14 +195,13 @@ public class GetNodeReactionsTests
         _api.GetNodeReactionsAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns(new List<NodeReaction>());
 
-        // Filter to node at (0,0,0)=ID 1 and (10,0,0)=ID 3
-        var filterPoints = new List<SgPoint3D>
+        var filterNodeIds = new List<int>
         {
-            new(0, 0, 0),
-            new(10, 0, 0)
+            1,
+            3
         };
 
-        await session.GetNodeReactionsAsync(model, filterPoints);
+        await session.GetNodeReactionsAsync(model, filterNodeIds);
 
         // Should pass "1,3" to the API
         await _api.Received(1).GetNodeReactionsAsync(
@@ -211,7 +210,7 @@ public class GetNodeReactionsTests
             Arg.Any<CancellationToken>());
     }
 
-    // ── Node filter — unmatched point warns ───────────────────────────
+    // ── Node filter — unmatched ID warns ────────────────────────────────
 
     [Fact]
     public async Task GetNodeReactions_WithUnmatchedNodeFilter_WarnsAndSkips()
@@ -224,16 +223,15 @@ public class GetNodeReactionsTests
                 new() { Node = 1, LoadCase = 1, Fx = 10f, Fy = 0, Fz = 0, Mx = 0, My = 0, Mz = 0 }
             });
 
-        // (99,99,99) doesn't match any node
-        var filterPoints = new List<SgPoint3D>
+        var filterNodeIds = new List<int>
         {
-            new(0, 0, 0),
-            new(99, 99, 99)
+            1,
+            99
         };
 
-        var result = await session.GetNodeReactionsAsync(model, filterPoints);
+        var result = await session.GetNodeReactionsAsync(model, filterNodeIds);
 
-        Assert.Contains(result.Warnings, w => w.Contains("99.000") && w.Contains("does not match"));
+        Assert.Contains(result.Warnings, w => w.Contains("node ID 99") && w.Contains("does not match"));
     }
 
     // ── Load case filter — resolves names to IDs ──────────────────────
@@ -284,11 +282,11 @@ public class GetNodeReactionsTests
         _api.GetNodeReactionsAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns(new List<NodeReaction>());
 
-        var filterPoints = new List<SgPoint3D> { new(0, 0, 0) };
+        var filterNodeIds = new List<int> { 1 };
         var loadCaseFilter = new List<string> { "Live Load" };
 
         await session.GetNodeReactionsAsync(model,
-            filterPoints, loadCaseFilter);
+            filterNodeIds, loadCaseFilter);
 
         await _api.Received(1).GetNodeReactionsAsync(
             Arg.Is<string?>(s => s == "1"), // node ID 1

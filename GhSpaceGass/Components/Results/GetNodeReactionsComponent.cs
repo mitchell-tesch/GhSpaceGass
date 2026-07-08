@@ -51,8 +51,8 @@ public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsCompo
             "Model", "M",
             "The assembled and analysed SpaceGass model.",
             GH_ParamAccess.item);
-        _inPoints = pManager.AddPointParameter("Points", "P",
-            "Optional: filter reactions to these node locations only.",
+        _inPoints = pManager.AddIntegerParameter("Node IDs", "NIds",
+            "Optional: filter to specific node IDs.",
             GH_ParamAccess.list);
         _inLoadCases = pManager.AddTextParameter("Load Cases", "LC",
             "Optional: filter reactions to these load case names only.",
@@ -170,7 +170,7 @@ public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsCompo
         }
 
         private SgModelData InputModel { get; set; }
-        private List<SgPoint3D> NodeFilter { get; set; }
+        private List<int> NodeFilter { get; set; }
         private List<string> LoadCaseFilter { get; set; }
         private double? UserScale { get; set; }
         private bool ShowValues { get; set; }
@@ -198,10 +198,12 @@ public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsCompo
             var modelGoo = new GH_SgModel();
             if (!da.GetData(Parent._inModel, ref modelGoo) || modelGoo?.Value == null) return;
             InputModel = modelGoo.Value;
-            var points = new List<GH_Point>();
-            if (da.GetDataList(Parent._inPoints, points) && points.Count > 0)
-                NodeFilter = points.Where(p => p?.Value != null)
-                    .Select(p => new SgPoint3D(p.Value.X, p.Value.Y, p.Value.Z)).ToList();
+            var nodeIds = new List<GH_Integer>();
+            da.GetDataList(Parent._inPoints, nodeIds);
+            NodeFilter = new List<int>();
+            foreach (var g in nodeIds)
+                if (g != null)
+                    NodeFilter.Add(g.Value);
             var lcNames = new List<GH_String>();
             if (da.GetDataList(Parent._inLoadCases, lcNames) && lcNames.Count > 0)
                 LoadCaseFilter = lcNames.Where(s => s?.Value != null).Select(s => s.Value).ToList();
@@ -322,7 +324,16 @@ public class GetNodeReactionsComponent : GH_AsyncComponent<GetNodeReactionsCompo
             // Build preview arrows from queried results
             var idToSgPoint = new Dictionary<int, SgPoint3D>();
             foreach (var kvp in InputModel.NodeMap) idToSgPoint[kvp.Value] = kvp.Key;
-            var bboxDiag = PreviewScaleHelper.ComputeBboxDiagonal(InputModel.NodeMap.Keys);
+
+            // Compute bbox from nodes that have results (not the full model)
+            var resultNodeIds = new HashSet<int>(result.Reactions.Select(r => r.NodeId));
+            var resultPoints = resultNodeIds
+                .Where(id => idToSgPoint.ContainsKey(id))
+                .Select(id => idToSgPoint[id])
+                .ToList();
+            var bboxDiag = PreviewScaleHelper.ComputeBboxDiagonal(
+                resultPoints.Count > 0 ? resultPoints : (IEnumerable<SgPoint3D>)InputModel.NodeMap.Keys);
+
             var previewResult = ReactionPreviewBuilder.Build(result.Reactions, idToSgPoint, bboxDiag, UserScale);
             PreviewArrows = previewResult.Arrows;
         }
