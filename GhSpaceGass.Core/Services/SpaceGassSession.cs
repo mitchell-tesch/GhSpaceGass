@@ -1,5 +1,3 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using GhSpaceGass.Core.Models;
 using SpaceGassApi.Models;
 
@@ -28,7 +26,6 @@ public class SpaceGassSession : IDisposable
     private readonly TimeSpan _startupTimeout;
 
     private ISpaceGassApi? _api;
-    private HttpClient? _pollClient;
     private int _disposed;
     private bool _weOwnProcess;
 
@@ -92,7 +89,6 @@ public class SpaceGassSession : IDisposable
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
 
         _api?.Dispose();
-        _pollClient?.Dispose();
 
         if (_weOwnProcess)
             _processManager.Kill();
@@ -154,25 +150,6 @@ public class SpaceGassSession : IDisposable
         }
 
         IsConnected = true;
-
-        // Create a dedicated HttpClient for analysis polling (bypasses Kiota pipeline
-        // which deadlocks in Grasshopper's SynchronizationContext).
-        // Only created when a real API service is available (skipped in unit tests).
-        _pollClient?.Dispose();
-        _pollClient = null;
-        try
-        {
-            var testClient = new HttpClient { BaseAddress = new Uri(BaseUrl) };
-            var probe = await testClient.GetAsync("/api/service/info", ct).ConfigureAwait(false);
-            if (probe.IsSuccessStatusCode)
-                _pollClient = testClient;
-            else
-                testClient.Dispose();
-        }
-        catch
-        {
-            // Non-fatal — fall back to Kiota API client for polling
-        }
 
         // Capture version info from the service
         try
@@ -1360,10 +1337,10 @@ public class SpaceGassSession : IDisposable
             ct.ThrowIfCancellationRequested();
             await Task.Delay(AnalysisPollInterval, ct).ConfigureAwait(false);
 
-            AnalysisRun? status;
+            AnalysisRun status;
             try
             {
-                status = await PollAnalysisRunRawAsync(runId, ct).ConfigureAwait(false);
+                status = await _api!.GetAnalysisRunAsync(runId, ct).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -1374,10 +1351,6 @@ public class SpaceGassSession : IDisposable
                 throw new InvalidOperationException(
                     ModelAssembler.FormatApiError(ex, "polling analysis status"), ex);
             }
-
-            // null = poll timed out, analysis still running — continue polling
-            if (status == null)
-                continue;
 
             if (status.Progress != null)
             {
@@ -1406,10 +1379,6 @@ public class SpaceGassSession : IDisposable
 
                 onProgress?.Invoke(progressText);
             }
-            else
-            {
-                onProgress?.Invoke($"Analysing ({status.Status})...");
-            }
 
             if (status.Status is AnalysisRunStatus.Completed
                 or AnalysisRunStatus.Failed
@@ -1418,43 +1387,6 @@ public class SpaceGassSession : IDisposable
         }
 
         throw new TimeoutException("Analysis did not complete within the 1-hour safety timeout.");
-    }
-
-    private static readonly JsonSerializerOptions PollJsonOptions = new()
-    {
-        PropertyNameCaseInsensitive = true,
-        Converters = { new JsonStringEnumConverter() }
-    };
-
-    /// <summary>
-    ///     Polls analysis run status using a raw HttpClient GET, bypassing the Kiota
-    ///     pipeline. Uses a short timeout because the SpaceGass API holds the GET
-    ///     request open (long-polling) until a status change occurs.
-    ///     Falls back to the Kiota API client when no poll client is available (unit tests).
-    /// </summary>
-    private async Task<AnalysisRun?> PollAnalysisRunRawAsync(Guid runId, CancellationToken ct)
-    {
-        if (_pollClient == null)
-            return await _api!.GetAnalysisRunAsync(runId, ct).ConfigureAwait(false);
-
-        // Use a short timeout — the API may hold the request until status changes
-        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        timeoutCts.CancelAfter(TimeSpan.FromSeconds(5));
-
-        try
-        {
-            var response = await _pollClient.GetAsync($"/api/job/analysis/runs/{runId}", timeoutCts.Token)
-                .ConfigureAwait(false);
-            response.EnsureSuccessStatusCode();
-            var json = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-            return JsonSerializer.Deserialize<AnalysisRun>(json, PollJsonOptions);
-        }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-        {
-            // Our 5-second timeout fired, not the caller's cancellation.
-            // Analysis is still running — return null to signal "no update yet"
-            return null;
-        }
     }
 
     /// <summary>
