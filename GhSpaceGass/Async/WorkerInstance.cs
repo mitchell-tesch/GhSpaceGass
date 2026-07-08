@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Grasshopper.Kernel;
+using Rhino;
 
 // ===========================================================
 // Using approach developed by Speckle Systems
@@ -48,7 +49,7 @@ public abstract class WorkerInstance<T>(T parent, string id, CancellationToken c
     protected void SetComponentMessage(string message)
     {
         Parent.Message = message;
-        Rhino.RhinoApp.InvokeOnUiThread((Action)(() => Parent.OnDisplayExpired(true)));
+        RhinoApp.InvokeOnUiThread((Action)(() => Parent.OnDisplayExpired(true)));
     }
 
     /// <summary>

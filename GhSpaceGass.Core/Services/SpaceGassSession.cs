@@ -1369,13 +1369,13 @@ public class SpaceGassSession : IDisposable
                 }
 
                 var progressText = stepLabel != null
-                    ? $"{stepInfo}: {stepLabel}"
-                    : stepInfo;
+                    ? $"{stepInfo}:\n{stepLabel}"
+                    : $"{stepInfo}:";
 
                 if (p.IterationPercentage != null)
-                    progressText += $" | {p.IterationPercentage}%";
+                    progressText += $" ({p.IterationPercentage}%)";
                 if (p.LoadCaseStatus != null)
-                    progressText += $" | {p.LoadCaseStatus}";
+                    progressText += $"\nLoad Case: {p.LoadCaseStatus}";
 
                 onProgress?.Invoke(progressText);
             }
