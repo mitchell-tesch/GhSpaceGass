@@ -75,7 +75,7 @@ public class GetNodeDisplacementsTests
             });
 
         var result = await session.GetNodeDisplacementsAsync(model,
-            new[] { new SgPoint3D(0, 0, 0) });
+            new[] { 1 });
 
         Assert.Single(result.Displacements);
         await _api.Received(1).GetNodeDisplacementsAsync("1", null, Arg.Any<CancellationToken>());
@@ -110,10 +110,10 @@ public class GetNodeDisplacementsTests
             .Returns(new List<NodeDisplacement>());
 
         var result = await session.GetNodeDisplacementsAsync(model,
-            new[] { new SgPoint3D(99, 99, 99) },
+            new[] { 99 },
             new[] { "Nonexistent" });
 
-        Assert.Contains(result.Warnings, w => w.Contains("(99.000, 99.000, 99.000)"));
+        Assert.Contains(result.Warnings, w => w.Contains("node ID 99"));
         Assert.Contains(result.Warnings, w => w.Contains("Nonexistent"));
     }
 
@@ -297,7 +297,7 @@ public class GetMemberEndForcesTests
             });
 
         var result = await session.GetMemberEndForcesAsync(model,
-            new[] { (new SgPoint3D(0, 0, 0), new SgPoint3D(10, 0, 0)) });
+            new[] { 1 });
 
         Assert.Equal(2, result.EndForces.Count);
         await _api.Received(1).GetMemberEndForcesAsync("1", null, Arg.Any<CancellationToken>());
@@ -313,7 +313,7 @@ public class GetMemberEndForcesTests
             .Returns(new List<MemberEndForce>());
 
         var result = await session.GetMemberEndForcesAsync(model,
-            new[] { (new SgPoint3D(0, 0, 0), new SgPoint3D(99, 0, 0)) });
+            new[] { 99 });
 
         Assert.Contains(result.Warnings, w => w.Contains("does not match any model member"));
     }

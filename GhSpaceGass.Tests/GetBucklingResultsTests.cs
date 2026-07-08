@@ -126,7 +126,7 @@ public class GetBucklingResultsTests
             });
 
         var result = await session.GetBucklingResultsAsync(model,
-            new[] { (new SgPoint3D(0, 0, 0), new SgPoint3D(10, 0, 0)) });
+            new[] { 1 });
 
         Assert.Single(result.EffectiveLengths);
         await _api.Received(1).GetBucklingEffectiveLengthsAsync("1", null, null, Arg.Any<CancellationToken>());
@@ -146,7 +146,7 @@ public class GetBucklingResultsTests
             .Returns(new List<BucklingEffectiveLength>());
 
         var result = await session.GetBucklingResultsAsync(model,
-            new[] { (new SgPoint3D(0, 0, 0), new SgPoint3D(99, 0, 0)) });
+            new[] { 99 });
 
         Assert.Contains(result.Warnings, w => w.Contains("does not match any model member"));
     }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Grasshopper.Kernel;
+using Rhino;
 
 // ===========================================================
 // Using approach developed by Speckle Systems
@@ -42,12 +43,13 @@ public abstract class WorkerInstance<T>(T parent, string id, CancellationToken c
     }
 
     /// <summary>
-    ///     Sets the component's Message property (the small text below the component).
-    ///     Safe to call from DoWork — string reference assignment is atomic in .NET.
+    ///     Sets the component's Message property (the small text below the component)
+    ///     and triggers a canvas repaint. Safe to call from DoWork.
     /// </summary>
     protected void SetComponentMessage(string message)
     {
         Parent.Message = message;
+        RhinoApp.InvokeOnUiThread((Action)(() => Parent.OnDisplayExpired(true)));
     }
 
     /// <summary>

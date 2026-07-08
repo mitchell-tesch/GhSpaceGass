@@ -60,8 +60,8 @@ public class GetNodeDisplacementsComponent : GH_AsyncComponent<GetNodeDisplaceme
             "Model", "M",
             "The assembled and analysed SpaceGass model.",
             GH_ParamAccess.item);
-        _inPoints = pManager.AddPointParameter("Points", "P",
-            "Optional: filter displacements to these node locations only.",
+        _inPoints = pManager.AddIntegerParameter("Node IDs", "NIds",
+            "Optional: filter to specific node IDs.",
             GH_ParamAccess.list);
         _inLoadCases = pManager.AddTextParameter("Load Cases", "LC",
             "Optional: filter displacements to these load case names only.",
@@ -167,7 +167,7 @@ public class GetNodeDisplacementsComponent : GH_AsyncComponent<GetNodeDisplaceme
         }
 
         private SgModelData InputModel { get; set; }
-        private List<SgPoint3D> NodeFilter { get; set; }
+        private List<int> NodeFilter { get; set; }
         private List<string> LoadCaseFilter { get; set; }
         private double? UserScale { get; set; }
         private bool ShowValues { get; set; }
@@ -198,12 +198,12 @@ public class GetNodeDisplacementsComponent : GH_AsyncComponent<GetNodeDisplaceme
                 return;
             InputModel = modelGoo.Value;
 
-            var points = new List<GH_Point>();
-            if (da.GetDataList(Parent._inPoints, points) && points.Count > 0)
-                NodeFilter = points
-                    .Where(p => p?.Value != null)
-                    .Select(p => new SgPoint3D(p.Value.X, p.Value.Y, p.Value.Z))
-                    .ToList();
+            var nodeIds = new List<GH_Integer>();
+            da.GetDataList(Parent._inPoints, nodeIds);
+            NodeFilter = new List<int>();
+            foreach (var g in nodeIds)
+                if (g != null)
+                    NodeFilter.Add(g.Value);
 
             var lcNames = new List<GH_String>();
             if (da.GetDataList(Parent._inLoadCases, lcNames) && lcNames.Count > 0)
@@ -345,7 +345,16 @@ public class GetNodeDisplacementsComponent : GH_AsyncComponent<GetNodeDisplaceme
             // Build preview vectors from queried results
             var idToSgPoint = new Dictionary<int, SgPoint3D>();
             foreach (var kvp in InputModel.NodeMap) idToSgPoint[kvp.Value] = kvp.Key;
-            var bboxDiag = PreviewScaleHelper.ComputeBboxDiagonal(InputModel.NodeMap.Keys);
+
+            // Compute bbox from nodes that have results (not the full model)
+            var resultNodeIds = new HashSet<int>(result.Displacements.Select(d => d.NodeId));
+            var resultPoints = resultNodeIds
+                .Where(id => idToSgPoint.ContainsKey(id))
+                .Select(id => idToSgPoint[id])
+                .ToList();
+            var bboxDiag = PreviewScaleHelper.ComputeBboxDiagonal(
+                resultPoints.Count > 0 ? resultPoints : (IEnumerable<SgPoint3D>)InputModel.NodeMap.Keys);
+
             var previewResult = DisplacementPreviewBuilder.Build(
                 result.Displacements, idToSgPoint, bboxDiag, UserScale);
             PreviewArrows = previewResult.Arrows;

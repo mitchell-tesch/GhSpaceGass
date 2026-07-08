@@ -67,9 +67,8 @@ public class GetPlateForcesComponent : GH_AsyncComponent<GetPlateForcesComponent
             "Model", "M",
             "The assembled and analysed SpaceGass model.",
             GH_ParamAccess.item);
-        _inPlates = pManager.AddParameter(new Param_SgPlate(),
-            "Plates", "P",
-            "Optional — filter to specific plates.",
+        _inPlates = pManager.AddIntegerParameter("Plate IDs", "PIds",
+            "Optional — filter to specific plate IDs.",
             GH_ParamAccess.list);
         _inLoadCases = pManager.AddTextParameter(
             "Load Cases", "LC",
@@ -84,7 +83,7 @@ public class GetPlateForcesComponent : GH_AsyncComponent<GetPlateForcesComponent
             GH_ParamAccess.item);
         _inVisual = pManager.AddParameter(
             new Param_SgIntegerOption("Visual", ValueListHelper.PlateForceVisualOptions,
-                defaultValue: 3, autoCreate: true),
+                defaultIndex: 4, defaultValue: 3, autoCreate: true),
             "Visual", "V",
             "Force component to contour in Element Forces mode.\n" +
             "Fx=0, Fy=1, Fxy=2, Mx=3, My=4, Mxy=5, Vxz=6, Vyz=7, MxTop=8, MxBtm=9, MyTop=10, MyBtm=11.\n" +
@@ -257,7 +256,7 @@ public class GetPlateForcesComponent : GH_AsyncComponent<GetPlateForcesComponent
         }
 
         private SgModelData InputModel { get; set; }
-        private List<SgPoint3D[]> PlateFilter { get; set; }
+        private List<int> PlateFilter { get; set; }
         private List<string> LoadCaseFilter { get; set; }
         private int Mode { get; set; }
         private int VisualIndex { get; set; } = 3;
@@ -306,12 +305,12 @@ public class GetPlateForcesComponent : GH_AsyncComponent<GetPlateForcesComponent
             if (!da.GetData(Parent._inModel, ref modelGoo) || modelGoo?.Value == null) return;
             InputModel = modelGoo.Value;
 
-            var plateGoos = new List<GH_SgPlate>();
-            da.GetDataList(Parent._inPlates, plateGoos);
-            PlateFilter = new List<SgPoint3D[]>();
-            foreach (var g in plateGoos)
+            var plateIds = new List<GH_Integer>();
+            da.GetDataList(Parent._inPlates, plateIds);
+            PlateFilter = new List<int>();
+            foreach (var g in plateIds)
                 if (g?.Value != null)
-                    PlateFilter.Add(g.Value.Nodes);
+                    PlateFilter.Add(g.Value);
 
             var lcNames = new List<GH_String>();
             if (da.GetDataList(Parent._inLoadCases, lcNames) && lcNames.Count > 0)
