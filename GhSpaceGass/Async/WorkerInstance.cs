@@ -43,11 +43,12 @@ public abstract class WorkerInstance<T>(T parent, string id, CancellationToken c
 
     /// <summary>
     ///     Sets the component's Message property (the small text below the component)
-    ///     and schedules a display refresh. Safe to call from DoWork.
+    ///     and triggers a canvas repaint. Safe to call from DoWork.
     /// </summary>
     protected void SetComponentMessage(string message)
     {
         Parent.Message = message;
+        Rhino.RhinoApp.InvokeOnUiThread((Action)(() => Parent.OnDisplayExpired(true)));
     }
 
     /// <summary>
