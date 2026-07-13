@@ -17,7 +17,7 @@
 
     <PropertyGroup>
         <!-- Specifies information for Assembly and Yak -->
-        <Version>0.2.0</Version>
+        <Version>0.3.0</Version>
         <Title>GhSpaceGass</Title>
         <Authors>Mitchell Tesch</Authors>
         <Company>GhSpaceGass</Company>
