@@ -150,6 +150,10 @@ internal interface ISpaceGassApi : IDisposable
     Task<List<PlateNodalForce>> GetPlateNodalForcesAsync(
         string? plates = null, string? loadCases = null, CancellationToken ct = default);
 
+    // ── Steel design (queries) ─────────────────────────────────────────
+    Task<List<SteelCheckSummary>> GetSteelMemberCheckSummaryAsync(
+        string? members = null, CancellationToken ct = default);
+
     // ── Job Info ─────────────────────────────────────────────────────
     Task<JobStatus> GetFullJobStatusAsync(CancellationToken ct = default);
     Task<JobHeadings> UpdateHeadingsAsync(JobHeadingsUpdate headings, CancellationToken ct = default);

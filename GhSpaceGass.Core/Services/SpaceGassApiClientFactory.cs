@@ -470,6 +470,19 @@ internal class SpaceGassApiWrapper : ISpaceGassApi
         return result?.Results ?? new List<PlateNodalForce>();
     }
 
+    public async Task<List<SteelCheckSummary>> GetSteelMemberCheckSummaryAsync(
+        string? members = null, CancellationToken ct = default)
+    {
+        var result = await _client.Job.Query.Design.SteelMember.CheckSummary.GetAsync(
+            config =>
+            {
+                if (members != null)
+                    config.QueryParameters.Members = members;
+            },
+            ct).ConfigureAwait(false);
+        return result?.Results ?? new List<SteelCheckSummary>();
+    }
+
     public async Task<JobStatus> GetFullJobStatusAsync(CancellationToken ct = default)
     {
         return (await _client.Job.Status.GetAsync(cancellationToken: ct).ConfigureAwait(false))!;

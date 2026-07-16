@@ -2301,6 +2301,86 @@ public class SpaceGassSession : IDisposable
     }
 
     /// <summary>
+    ///     Queries the steel-design member check summary from the current job.
+    ///     Returns one aggregated record per steel-design group — the critical load case is a value
+    ///     on each record, not a data-tree dimension (ADR-0016). Optionally filters by design-group IDs
+    ///     (passed to the API's <c>Members</c> query parameter — the API uses the term "Member" for
+    ///     what is actually a design-group identifier).
+    /// </summary>
+    public async Task<SgSteelMemberCheckSummaryResult> GetSteelMemberCheckSummaryAsync(
+        SgModelData model,
+        IReadOnlyList<int>? designGroupFilter = null,
+        CancellationToken ct = default)
+    {
+        if (!IsConnected)
+            throw new InvalidOperationException("Not connected to SpaceGass");
+
+        var result = new SgSteelMemberCheckSummaryResult();
+
+        // The API's Members query parameter is really a design-group filter — but we still validate
+        // against MemberMap since design-group IDs share the model member ID space in the current API.
+        var groupsParam = ResolveDesignGroupFilter(designGroupFilter, result.Warnings, model);
+
+        List<SteelCheckSummary> summaries;
+        try
+        {
+            summaries = await _api!.GetSteelMemberCheckSummaryAsync(groupsParam, ct)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                ModelAssembler.FormatApiError(ex, "querying steel member check summary"), ex);
+        }
+
+        foreach (var s in summaries)
+        {
+            if (s.Member == null) continue;
+
+            result.Checks.Add(new SgSteelMemberCheckData(
+                designGroupId: s.Member.Value,
+                section: s.Section ?? string.Empty,
+                flag: s.Flag ?? string.Empty,
+                loadFactor: s.LoadFactor ?? 0.0,
+                criticalCaseId: s.CriticalCase,
+                failureMode: s.Failure ?? string.Empty,
+                segmentLength: s.SegmentLength ?? 0.0,
+                totalLength: s.TotalLength ?? 0.0,
+                yield: s.Yield ?? 0.0));
+        }
+
+        result.Checks.Sort((a, b) => a.DesignGroupId.CompareTo(b.DesignGroupId));
+
+        return result;
+    }
+
+    /// <summary>
+    ///     Resolves a design-group ID filter to a comma-separated string for the API's
+    ///     <c>Members</c> query parameter. Validates against the model's MemberMap
+    ///     (design-group IDs share the member ID space in the current API surface).
+    /// </summary>
+    private static string? ResolveDesignGroupFilter(
+        IReadOnlyList<int>? designGroupFilter,
+        List<string> warnings,
+        SgModelData model)
+    {
+        if (designGroupFilter == null || designGroupFilter.Count == 0)
+            return null;
+
+        var ids = new List<int>();
+        foreach (var id in designGroupFilter)
+        {
+            if (model.MemberMap.ContainsKey(id))
+                ids.Add(id);
+            else
+                warnings.Add($"Filter design group ID {id} does not match any model member — skipped.");
+        }
+
+        return ids.Count > 0 ? string.Join(",", ids) : null;
+    }
+
+    /// <summary>
     ///     Retrieves the full job status including headings, settings, units, and summary counts.
     ///     Maps from the API's JobStatus to a clean SgJobInfo domain model.
     /// </summary>

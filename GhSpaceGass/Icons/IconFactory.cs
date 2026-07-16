@@ -1010,4 +1010,22 @@ public static class IconFactory
         g.FillPolygon(brush, head);
         return bmp;
     }
+
+    /// <summary>Steel member check — I-beam profile with a check mark.</summary>
+    public static Bitmap SteelMemberCheck()
+    {
+        var bmp = Create();
+        using var g = Setup(bmp);
+        using var pen = P(Results, 1.5f);
+        using var brush = B(Results);
+        // I-beam profile (top flange, web, bottom flange)
+        g.DrawLine(pen, 4, 5, 14, 5);   // top flange
+        g.DrawLine(pen, 9, 5, 9, 19);   // web
+        g.DrawLine(pen, 4, 19, 14, 19); // bottom flange
+        // Check mark (green traffic-light hint)
+        using var checkPen = new Pen(Color.FromArgb(76, 175, 80), 2f);
+        g.DrawLine(checkPen, 15, 13, 18, 17);
+        g.DrawLine(checkPen, 18, 17, 22, 9);
+        return bmp;
+    }
 }
