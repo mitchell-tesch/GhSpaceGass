@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using GhSpaceGass.Async;
 using GhSpaceGass.Core.Models;
+using GhSpaceGass.Core.Models.Visuals;
+using GhSpaceGass.Helpers;
 using GhSpaceGass.Types;
 using Grasshopper.Kernel;
 using Grasshopper.Kernel.Data;
@@ -18,11 +20,27 @@ namespace GhSpaceGass.Components.Results;
 
 public class GetDynamicFrequencyResultsComponent : GH_AsyncComponent<GetDynamicFrequencyResultsComponent>
 {
+    // Distinct from existing preview colours: reactions (per-axis RGB), node displacements (purple),
+    // displaced shape (cyan), force diagrams (pink/orange/teal/purple family), plate contours (Turbo).
+    private static readonly Color[] ModePalette =
+    {
+        Color.FromArgb(255, 235, 59),  // Yellow
+        Color.FromArgb(121, 85, 72),   // Brown
+        Color.FromArgb(240, 98, 146),  // Rose
+        Color.FromArgb(63, 81, 181),   // Indigo
+        Color.FromArgb(205, 220, 57),  // Lime
+        Color.FromArgb(96, 125, 139),  // Blue Grey
+        Color.FromArgb(129, 212, 250), // Sky Blue
+        Color.FromArgb(255, 87, 34)    // Deep Orange
+    };
+
     private int _inLoadCases;
     private int _inModel;
     private int _inModes;
     private int _inNodes;
-    
+    private int _inScale;
+    private int _inShowValues;
+
     private int _outFrequency;
     private int _outLoadCases;
     private int _outMassPartX, _outMassPartY, _outMassPartZ;
@@ -35,10 +53,15 @@ public class GetDynamicFrequencyResultsComponent : GH_AsyncComponent<GetDynamicF
     private int _outWarnings;
     private int _outStatus;
 
+    private List<PreviewModeShapeLine> _previewLines = new();
+    private List<PreviewModeShapeLabel> _previewLabels = new();
+    private bool _showValues;
+
     public GetDynamicFrequencyResultsComponent()
         : base("SG Dynamic Frequencies", "sgDynFreq",
             "Query dynamic frequency analysis results (natural frequencies and mode shapes) " +
-            "from a completed SpaceGass dynamic frequency analysis.",
+            "from a completed SpaceGass dynamic frequency analysis. " +
+            "Displays each mode as a deformed shape in the viewport when preview is enabled.",
             "SpaceGass", "8 | Results")
     {
         BaseWorker = new GetDynamicFrequencyResultsWorker(this);
@@ -47,6 +70,7 @@ public class GetDynamicFrequencyResultsComponent : GH_AsyncComponent<GetDynamicF
     public override GH_Exposure Exposure => GH_Exposure.quarternary;
     protected override Bitmap Icon => Icons.IconFactory.DynamicFrequencyResults();
     public override Guid ComponentGuid => new("B8F2A4C1-7D3E-4A9B-8E5F-1C6D9A0B3E72");
+    public override bool IsPreviewCapable => true;
 
     protected override void RegisterInputParams(GH_InputParamManager pManager)
     {
@@ -63,10 +87,18 @@ public class GetDynamicFrequencyResultsComponent : GH_AsyncComponent<GetDynamicF
         _inLoadCases = pManager.AddTextParameter("Load Cases", "LC",
             "Optional: filter results to these load case names only.",
             GH_ParamAccess.list);
+        _inScale = pManager.AddNumberParameter("Visual Scale", "VSc",
+            "Optional: scale factor for mode-shape preview. " +
+            "When omitted, auto-scale is computed (ADR-0009). Set to 0 to disable preview.",
+            GH_ParamAccess.item);
+        _inShowValues = pManager.AddBooleanParameter("Show Values?", "SV?",
+            "When true, display 'Mode N (X Hz)' label per mode at the point of peak deformation.",
+            GH_ParamAccess.item, true);
 
         pManager[_inNodes].Optional = true;
         pManager[_inModes].Optional = true;
         pManager[_inLoadCases].Optional = true;
+        pManager[_inScale].Optional = true;
     }
 
     protected override void RegisterOutputParams(GH_OutputParamManager pManager)
@@ -129,6 +161,67 @@ public class GetDynamicFrequencyResultsComponent : GH_AsyncComponent<GetDynamicF
         Menu_AppendItem(menu, "Cancel", (_, _) => { RequestCancellation(); });
     }
 
+    public override void DrawViewportWires(IGH_PreviewArgs args)
+    {
+        base.DrawViewportWires(args);
+        if (_previewLines.Count == 0) return;
+
+        for (var i = 0; i < _previewLines.Count; i++)
+        {
+            var line = _previewLines[i];
+            args.Display.DrawLine(new Line(line.Start, line.End), ModePalette[line.PaletteIndex], 2);
+        }
+
+        if (_showValues)
+            for (var i = 0; i < _previewLabels.Count; i++)
+            {
+                var lbl = _previewLabels[i];
+                args.Display.Draw2dText(lbl.Text, ModePalette[lbl.PaletteIndex], lbl.Anchor, false, 12);
+            }
+    }
+
+    public override BoundingBox ClippingBox
+    {
+        get
+        {
+            var box = base.ClippingBox;
+            foreach (var line in _previewLines)
+            {
+                box.Union(line.Start);
+                box.Union(line.End);
+            }
+            return box;
+        }
+    }
+
+    private sealed class PreviewModeShapeLine
+    {
+        public PreviewModeShapeLine(Point3d start, Point3d end, int paletteIndex)
+        {
+            Start = start;
+            End = end;
+            PaletteIndex = paletteIndex;
+        }
+
+        public Point3d Start { get; }
+        public Point3d End { get; }
+        public int PaletteIndex { get; }
+    }
+
+    private sealed class PreviewModeShapeLabel
+    {
+        public PreviewModeShapeLabel(Point3d anchor, string text, int paletteIndex)
+        {
+            Anchor = anchor;
+            Text = text;
+            PaletteIndex = paletteIndex;
+        }
+
+        public Point3d Anchor { get; }
+        public string Text { get; }
+        public int PaletteIndex { get; }
+    }
+
     // ── Worker ────────────────────────────────────────────────────
 
     private sealed class GetDynamicFrequencyResultsWorker : WorkerInstance<GetDynamicFrequencyResultsComponent>
@@ -145,6 +238,8 @@ public class GetDynamicFrequencyResultsComponent : GH_AsyncComponent<GetDynamicF
         private List<int> NodesFilter { get; set; }
         private List<int> ModesFilter { get; set; }
         private List<string> LoadCaseFilter { get; set; }
+        private double? UserScale { get; set; }
+        private bool ShowValues { get; set; }
 
         // Natural frequency outputs (branched by {load_case; mode})
         private GH_Structure<GH_Number> OutFrequency { get; set; }
@@ -167,6 +262,8 @@ public class GetDynamicFrequencyResultsComponent : GH_AsyncComponent<GetDynamicF
         private GH_Structure<GH_Integer> OutNodes { get; set; }
         private string OutWarningsText { get; set; }
         private string Status { get; set; } = string.Empty;
+        private List<PreviewModeShapeLine> PreviewLines { get; set; } = new();
+        private List<PreviewModeShapeLabel> PreviewLabels { get; set; } = new();
 
         public override WorkerInstance<GetDynamicFrequencyResultsComponent> Duplicate(
             string id, CancellationToken cancellationToken)
@@ -201,6 +298,19 @@ public class GetDynamicFrequencyResultsComponent : GH_AsyncComponent<GetDynamicF
                     .Where(s => s?.Value != null)
                     .Select(s => s.Value)
                     .ToList();
+
+            var scaleValue = 0.0;
+            if (da.GetData(Parent._inScale, ref scaleValue))
+            {
+                if (scaleValue < 0)
+                    AddRuntimeMessage(GH_RuntimeMessageLevel.Warning,
+                        "Scale must be ≥ 0. Preview disabled.");
+                UserScale = scaleValue;
+            }
+
+            var showValues = true;
+            da.GetData(Parent._inShowValues, ref showValues);
+            ShowValues = showValues;
         }
 
         public override async Task DoWork(Action<string, double> reportProgress, Action done)
@@ -345,8 +455,9 @@ public class GetDynamicFrequencyResultsComponent : GH_AsyncComponent<GetDynamicF
                 .OrderBy(g => g.Key)
                 .ToList();
 
-            foreach (var lcGroup in msByLoadCase)
+            for (var i = 0; i < msByLoadCase.Count; i++)
             {
+                var lcGroup = msByLoadCase[i];
                 var li = lcIndexMap[lcGroup.Key];
 
                 var byMode = lcGroup
@@ -354,18 +465,21 @@ public class GetDynamicFrequencyResultsComponent : GH_AsyncComponent<GetDynamicF
                     .OrderBy(g => g.Key)
                     .ToList();
 
-                foreach (var modeGroup in byMode)
+                for (var j = 0; j < byMode.Count; j++)
                 {
+                    var modeGroup = byMode[j];
                     var mi = modeIndexMap[modeGroup.Key];
                     var path = new GH_Path(li, mi);
+                    var isFirstBranch = i == 0 && j == 0;
 
                     foreach (var ms in modeGroup.OrderBy(ms => ms.NodeId))
                     {
                         OutNodes.Append(new GH_Integer(ms.NodeId), path);
-                        OutPoints.Append(
-                            idToPoint.TryGetValue(ms.NodeId, out var npt)
-                                ? new GH_Point(npt)
-                                : new GH_Point(Point3d.Unset), path);
+                        if (isFirstBranch)
+                            OutPoints.Append(
+                                idToPoint.TryGetValue(ms.NodeId, out var npt)
+                                    ? new GH_Point(npt)
+                                    : new GH_Point(Point3d.Unset), path);
                         OutTx.Append(new GH_Number(ms.Tx), path);
                         OutTy.Append(new GH_Number(ms.Ty), path);
                         OutTz.Append(new GH_Number(ms.Tz), path);
@@ -380,6 +494,49 @@ public class GetDynamicFrequencyResultsComponent : GH_AsyncComponent<GetDynamicF
             var msCount = result.ModeShapes.Count;
             SetComponentMessage($"{nfCount} frequencies, {msCount} mode shapes");
             Status = $"{nfCount} frequencies, {msCount} mode shapes queried.";
+
+            // Build mode-shape preview
+            var nodeIdToSgPoint = new Dictionary<int, SgPoint3D>();
+            foreach (var kvp in InputModel.NodeMap) nodeIdToSgPoint[kvp.Value] = kvp.Key;
+
+            var resultNodeIds = new HashSet<int>(result.ModeShapes.Select(ms => ms.NodeId));
+            var resultPoints = resultNodeIds
+                .Where(id => nodeIdToSgPoint.ContainsKey(id))
+                .Select(id => nodeIdToSgPoint[id])
+                .ToList();
+            var bboxDiag = PreviewScaleHelper.ComputeBboxDiagonal(
+                resultPoints.Count > 0 ? resultPoints : (IEnumerable<SgPoint3D>)InputModel.NodeMap.Keys);
+
+            var previewResult = ModeShapeBuilder.Build(
+                result.ModeShapes, result.NaturalFrequencies,
+                InputModel.MemberMap, nodeIdToSgPoint,
+                bboxDiag, UserScale);
+
+            PreviewLines = new List<PreviewModeShapeLine>();
+            PreviewLabels = new List<PreviewModeShapeLabel>();
+
+            var bestForMode = new Dictionary<(int LoadCaseId, int Mode), ModeShapePolyline>();
+
+            foreach (var poly in previewResult.Polylines)
+            {
+                if (poly.Points.Count < 2) continue;
+
+                var start = poly.Points[0].ToPoint3d();
+                var end = poly.Points[1].ToPoint3d();
+                PreviewLines.Add(new PreviewModeShapeLine(start, end, poly.PaletteIndex));
+
+                var key = (poly.LoadCaseId, poly.Mode);
+                if (!bestForMode.TryGetValue(key, out var current) || poly.MaxResultant > current.MaxResultant)
+                    bestForMode[key] = poly;
+            }
+
+            foreach (var poly in bestForMode.Values)
+            {
+                var text = poly.Frequency.HasValue
+                    ? $"Mode {poly.Mode} ({poly.Frequency.Value:G4} Hz)"
+                    : $"Mode {poly.Mode}";
+                PreviewLabels.Add(new PreviewModeShapeLabel(poly.PeakPoint.ToPoint3d(), text, poly.PaletteIndex));
+            }
         }
 
         public override void SetData(IGH_DataAccess da)
@@ -401,6 +558,10 @@ public class GetDynamicFrequencyResultsComponent : GH_AsyncComponent<GetDynamicF
             if (OutNodes != null) da.SetDataTree(Parent._outNodes, OutNodes);
             da.SetData(Parent._outWarnings, OutWarningsText ?? "");
             da.SetData(Parent._outStatus, Status);
+
+            Parent._previewLines = PreviewLines;
+            Parent._previewLabels = PreviewLabels;
+            Parent._showValues = ShowValues;
         }
     }
 }
