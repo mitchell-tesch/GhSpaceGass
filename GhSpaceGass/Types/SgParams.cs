@@ -315,3 +315,81 @@ public class Param_SgThermalLoad : GH_Param<GH_SgThermalLoad>
     protected override Bitmap Icon => Icons.IconFactory.ThermalLoad();
     public override Guid ComponentGuid => new("B1000001-0000-0000-0000-000000000024");
 }
+
+public class Param_SgMovingLoadScenario : GH_Param<GH_SgMovingLoadScenario>
+{
+    public Param_SgMovingLoadScenario()
+        : base("Moving Load Scenario", "MLS", "A SpaceGass moving load scenario.",
+            "SpaceGass", "Parameters", GH_ParamAccess.item)
+    {
+    }
+
+    public override GH_Exposure Exposure => GH_Exposure.hidden;
+    protected override Bitmap Icon => Icons.IconFactory.MovingLoadScenario();
+    public override Guid ComponentGuid => new("B1000001-0000-0000-0000-000000000025");
+}
+
+public class Param_SgMovingLoadVehicle : GH_Param<GH_SgMovingLoadVehicle>
+{
+    public Param_SgMovingLoadVehicle()
+        : base("Moving Load Vehicle", "MLV", "A SpaceGass moving load vehicle.",
+            "SpaceGass", "Parameters", GH_ParamAccess.item)
+    {
+    }
+
+    public override GH_Exposure Exposure => GH_Exposure.hidden;
+    protected override Bitmap Icon => Icons.IconFactory.MovingLoadVehicle();
+    public override Guid ComponentGuid => new("B1000001-0000-0000-0000-000000000026");
+}
+
+public class Param_SgMovingLoadPressure : GH_Param<GH_SgMovingLoadPressure>
+{
+    public Param_SgMovingLoadPressure()
+        : base("Moving Load Pressure", "MLP", "A SpaceGass moving load pressure.",
+            "SpaceGass", "Parameters", GH_ParamAccess.item)
+    {
+    }
+
+    public override GH_Exposure Exposure => GH_Exposure.hidden;
+    protected override Bitmap Icon => Icons.IconFactory.MovingLoadPressure();
+    public override Guid ComponentGuid => new("B1000001-0000-0000-0000-000000000027");
+}
+
+public class Param_SgMovingLoadTravelPath : GH_Param<GH_SgMovingLoadTravelPath>
+{
+    public Param_SgMovingLoadTravelPath()
+        : base("Moving Load Travel Path", "MLTP", "A SpaceGass moving load travel path.",
+            "SpaceGass", "Parameters", GH_ParamAccess.item)
+    {
+    }
+
+    public override GH_Exposure Exposure => GH_Exposure.hidden;
+    protected override Bitmap Icon => Icons.IconFactory.MovingLoadTravelPath();
+    public override Guid ComponentGuid => new("B1000001-0000-0000-0000-000000000028");
+}
+
+public class Param_SgMovingLoad : GH_Param<GH_SgMovingLoad>
+{
+    public Param_SgMovingLoad()
+        : base("Moving Load", "ML", "A SpaceGass moving load (vehicle or pressure on a travel path).",
+            "SpaceGass", "Parameters", GH_ParamAccess.item)
+    {
+    }
+
+    public override GH_Exposure Exposure => GH_Exposure.hidden;
+    protected override Bitmap Icon => Icons.IconFactory.MovingLoad();
+    public override Guid ComponentGuid => new("B1000001-0000-0000-0000-000000000029");
+}
+
+public class Param_SgMovingLoadSettings : GH_Param<GH_SgMovingLoadSettings>
+{
+    public Param_SgMovingLoadSettings()
+        : base("Moving Load Settings", "MLSet", "Job-level moving-load engine settings.",
+            "SpaceGass", "Parameters", GH_ParamAccess.item)
+    {
+    }
+
+    public override GH_Exposure Exposure => GH_Exposure.hidden;
+    protected override Bitmap Icon => Icons.IconFactory.MovingLoadSettings();
+    public override Guid ComponentGuid => new("B1000001-0000-0000-0000-000000000030");
+}

@@ -30,6 +30,7 @@ public class ModelAssembler
         IReadOnlyList<SgPlateData>? plates = null,
         IReadOnlyList<SgPlatePressureLoadData>? platePressureLoads = null,
         IReadOnlyList<SgThermalLoadData>? thermalLoads = null,
+        IReadOnlyList<SgMovingLoadScenarioData>? movingLoadScenarios = null,
         bool appendMode = false,
         CancellationToken ct = default)
     {
@@ -667,6 +668,31 @@ public class ModelAssembler
         var effectiveMemberPrestressLoads = memberPrestressLoads ?? Array.Empty<SgMemberPrestressLoadData>();
         var effectivePlatePressureLoads = platePressureLoads ?? Array.Empty<SgPlatePressureLoadData>();
         var effectiveThermalLoads = thermalLoads ?? Array.Empty<SgThermalLoadData>();
+        var effectiveMovingLoadScenarios = movingLoadScenarios ?? Array.Empty<SgMovingLoadScenarioData>();
+
+        // Moving-load resources (vehicles, pressures, travel paths) are discovered by walking
+        // each scenario's Loads[] rather than being fed as separate lists — scenarios are the
+        // single entry point for the moving-load workflow. Reference-equal duplicates (same
+        // resource shared across multiple loads / scenarios) are silently collapsed; key-equal
+        // duplicates with different instances still warn via the existing DeduplicateByKey step.
+        var effectiveMovingLoadVehicles = new List<SgMovingLoadVehicleData>();
+        var effectiveMovingLoadPressures = new List<SgMovingLoadPressureData>();
+        var effectiveMovingLoadTravelPaths = new List<SgMovingLoadTravelPathData>();
+        {
+            var seenVehicleRefs = new HashSet<SgMovingLoadVehicleData>();
+            var seenPressureRefs = new HashSet<SgMovingLoadPressureData>();
+            var seenPathRefs = new HashSet<SgMovingLoadTravelPathData>();
+            foreach (var scen in effectiveMovingLoadScenarios)
+            foreach (var load in scen.Loads)
+            {
+                if (load.Vehicle != null && seenVehicleRefs.Add(load.Vehicle))
+                    effectiveMovingLoadVehicles.Add(load.Vehicle);
+                if (load.Pressure != null && seenPressureRefs.Add(load.Pressure))
+                    effectiveMovingLoadPressures.Add(load.Pressure);
+                if (seenPathRefs.Add(load.TravelPath))
+                    effectiveMovingLoadTravelPaths.Add(load.TravelPath);
+            }
+        }
 
         var hasAnyLoads = effectiveNodeLoads.Count > 0
                           || effectiveMemberDistLoads.Count > 0
@@ -677,7 +703,8 @@ public class ModelAssembler
                           || effectiveMemberConcLoads.Count > 0
                           || effectiveMemberPrestressLoads.Count > 0
                           || effectivePlatePressureLoads.Count > 0
-                          || effectiveThermalLoads.Count > 0;
+                          || effectiveThermalLoads.Count > 0
+                          || effectiveMovingLoadScenarios.Count > 0;
 
         // Member lookup for member-based loads (distributed, concentrated, prestress, thermal)
         Dictionary<(int, int), int>? memberLookup = null;
@@ -764,34 +791,46 @@ public class ModelAssembler
                 allLoadCases.AddRange(combo.Constituents
                     .Where(c => !c.IsCombinationReference)
                     .Select(c => c.LoadCase!));
+            // Moving load scenarios: starting LC + primary LCs referenced by combination entries
+            foreach (var scen in effectiveMovingLoadScenarios)
+            {
+                if (scen.StartingLoadCase != null)
+                    allLoadCases.Add(scen.StartingLoadCase);
+                foreach (var entry in scen.Combinations)
+                    if (!entry.IsCombinationReference)
+                        allLoadCases.Add(entry.LoadCase!);
+            }
 
             var uniqueLoadCases = DeduplicateByKey(
                 allLoadCases, lc => lc.Key,
                 "load case", result.Warnings);
 
-            var loadCaseCreates = uniqueLoadCases
-                .Select(lc => new LoadCaseCreate { Title = lc.Name, Notes = lc.Notes })
-                .ToList();
-
-            List<LoadCase> createdLoadCases;
-            try
+            if (uniqueLoadCases.Count > 0)
             {
-                createdLoadCases = await api.CreateLoadCasesAsync(loadCaseCreates, ct)
-                    .ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                throw new InvalidOperationException(FormatApiError(ex, "creating load cases"), ex);
-            }
+                var loadCaseCreates = uniqueLoadCases
+                    .Select(lc => new LoadCaseCreate { Title = lc.Name, Notes = lc.Notes })
+                    .ToList();
 
-            ValidateBulkResult(createdLoadCases.Count, uniqueLoadCases.Count, "load cases");
+                List<LoadCase> createdLoadCases;
+                try
+                {
+                    createdLoadCases = await api.CreateLoadCasesAsync(loadCaseCreates, ct)
+                        .ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    throw new InvalidOperationException(FormatApiError(ex, "creating load cases"), ex);
+                }
 
-            for (var i = 0; i < uniqueLoadCases.Count; i++)
-                model.LoadCaseMap[uniqueLoadCases[i].Key] = createdLoadCases[i].Id!.Value;
+                ValidateBulkResult(createdLoadCases.Count, uniqueLoadCases.Count, "load cases");
+
+                for (var i = 0; i < uniqueLoadCases.Count; i++)
+                    model.LoadCaseMap[uniqueLoadCases[i].Key] = createdLoadCases[i].Id!.Value;
+            }
 
             // Step 7c: Create combination load cases (after primaries — they reference IDs)
             // Combinations may reference other combinations, so we create them in topological order.
@@ -896,6 +935,337 @@ public class ModelAssembler
 
                     foreach (var c in batch)
                         remaining.Remove(c);
+                }
+            }
+
+            // Step 7d-vehicles: Create moving load vehicles (before scenarios so scenario
+            // Loads[] entries — populated in a future release — can resolve vehicle IDs)
+            if (effectiveMovingLoadVehicles.Count > 0)
+            {
+                var uniqueVehicles = DeduplicateByKey(
+                    effectiveMovingLoadVehicles, v => v.Key,
+                    "moving load vehicle", result.Warnings);
+
+                var libraryVehicles = uniqueVehicles.Where(v => v.IsLibrary).ToList();
+                var userVehicles = uniqueVehicles.Where(v => !v.IsLibrary).ToList();
+
+                foreach (var lv in libraryVehicles)
+                {
+                    MovingLoadVehicle created;
+                    try
+                    {
+                        created = await api.CreateMovingLoadVehicleFromLibraryAsync(
+                            new MovingLoadVehicleLibraryCreate { Library = lv.Library, Name = lv.Name },
+                            ct).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        throw;
+                    }
+                    catch (Exception ex)
+                    {
+                        throw new InvalidOperationException(
+                            FormatApiError(ex, "creating moving load vehicles"), ex);
+                    }
+
+                    if (created.Id == null)
+                        throw new InvalidOperationException(
+                            $"SpaceGass returned no ID for library moving load vehicle '{lv.Key}'.");
+                    model.MovingLoadVehicleMap[lv.Key] = created.Id!.Value;
+                }
+
+                if (userVehicles.Count > 0)
+                {
+                    var creates = userVehicles.Select(v => new MovingLoadVehicleCreate
+                    {
+                        Name = v.Name,
+                        LoadUnits = new VehicleLoadUnits
+                        {
+                            Force = v.ForceUnit,
+                            Length = v.LengthUnit,
+                            Moment = v.MomentUnit
+                        },
+                        Loads = v.WheelLoads.Select(w => new VehicleWheelLoad
+                        {
+                            X = w.X, Y = w.Y,
+                            Fx = w.Fx, Fy = w.Fy, Fz = w.Fz,
+                            Mx = w.Mx, My = w.My, Mz = w.Mz
+                        }).ToList()
+                    }).ToList();
+
+                    List<MovingLoadVehicle> createdVehicles;
+                    try
+                    {
+                        createdVehicles = await api.CreateMovingLoadVehiclesFromUserAsync(creates, ct)
+                            .ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        throw;
+                    }
+                    catch (Exception ex)
+                    {
+                        throw new InvalidOperationException(
+                            FormatApiError(ex, "creating moving load vehicles"), ex);
+                    }
+
+                    ValidateBulkResult(createdVehicles.Count, userVehicles.Count, "moving load vehicles");
+
+                    for (var i = 0; i < userVehicles.Count; i++)
+                        model.MovingLoadVehicleMap[userVehicles[i].Key] =
+                            createdVehicles[i].Id!.Value;
+                }
+            }
+
+            // Step 7d-pressures: Create moving load pressures (before scenarios)
+            if (effectiveMovingLoadPressures.Count > 0)
+            {
+                var uniquePressures = DeduplicateByKey(
+                    effectiveMovingLoadPressures, p => p.Key,
+                    "moving load pressure", result.Warnings);
+
+                var creates = uniquePressures.Select(p => new MovingLoadPressureCreate
+                {
+                    Name = p.Name,
+                    Width = p.Width,
+                    Length = p.Length,
+                    LoadSpacing = p.LoadSpacing,
+                    Px = p.Px,
+                    Py = p.Py,
+                    Pz = p.Pz
+                }).ToList();
+
+                List<MovingLoadPressure> createdPressures;
+                try
+                {
+                    createdPressures = await api.CreateMovingLoadPressuresAsync(creates, ct)
+                        .ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    throw new InvalidOperationException(
+                        FormatApiError(ex, "creating moving load pressures"), ex);
+                }
+
+                ValidateBulkResult(createdPressures.Count, uniquePressures.Count, "moving load pressures");
+
+                for (var i = 0; i < uniquePressures.Count; i++)
+                    model.MovingLoadPressureMap[uniquePressures[i].Key] =
+                        createdPressures[i].Id!.Value;
+            }
+
+            // Step 7d-paths: Create moving load travel paths (bulk create name-only, then per-path
+            // stations PUT — the SpaceGass API separates the two). Runs before scenarios so
+            // scenario Loads[] entries — populated in a future release — can resolve path IDs.
+            if (effectiveMovingLoadTravelPaths.Count > 0)
+            {
+                var uniquePaths = DeduplicateByKey(
+                    effectiveMovingLoadTravelPaths, p => p.Key,
+                    "moving load travel path", result.Warnings);
+
+                var pathCreates = uniquePaths
+                    .Select(p => new MovingLoadTravelPathCreate { Name = p.Name })
+                    .ToList();
+
+                List<MovingLoadTravelPath> createdPaths;
+                try
+                {
+                    createdPaths = await api.CreateMovingLoadTravelPathsAsync(pathCreates, ct)
+                        .ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    throw new InvalidOperationException(
+                        FormatApiError(ex, "creating moving load travel paths"), ex);
+                }
+
+                ValidateBulkResult(createdPaths.Count, uniquePaths.Count, "moving load travel paths");
+
+                for (var i = 0; i < uniquePaths.Count; i++)
+                    model.MovingLoadTravelPathMap[uniquePaths[i].Key] = createdPaths[i].Id!.Value;
+
+                // Push stations per path — the stations endpoint is not bulk.
+                for (var i = 0; i < uniquePaths.Count; i++)
+                {
+                    var path = uniquePaths[i];
+                    var pathId = createdPaths[i].Id!.Value;
+
+                    var stationPayloads = path.Stations.Select(s => new MovingLoadStation
+                    {
+                        // NodeKey is a station identifier local to the travel path — SpaceGass
+                        // assigns it; we leave it null and always send absolute coordinates.
+                        NodeKey = null,
+                        X = s.Position.X,
+                        Y = s.Position.Y,
+                        Z = s.Position.Z,
+                        Radius = s.Radius
+                    }).ToList();
+
+                    try
+                    {
+                        await api.SetMovingLoadTravelPathStationsAsync(pathId, stationPayloads, ct)
+                            .ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        throw;
+                    }
+                    catch (Exception ex)
+                    {
+                        throw new InvalidOperationException(
+                            FormatApiError(ex, $"setting stations on moving load travel path '{path.Name}'"), ex);
+                    }
+                }
+            }
+
+            // Step 7d: Create moving load scenarios (after primary + combination load cases —
+            // scenarios may reference either kind via their Combinations entries and StartingLoadCase)
+            if (effectiveMovingLoadScenarios.Count > 0)
+            {
+                var uniqueScenarios = DeduplicateByKey(
+                    effectiveMovingLoadScenarios, s => s.Key,
+                    "moving load scenario", result.Warnings);
+
+                var scenarioCreates = new List<MovingLoadScenarioCreate>(uniqueScenarios.Count);
+                foreach (var scen in uniqueScenarios)
+                {
+                    int? startingLoadCaseId = null;
+                    if (scen.StartingLoadCase != null &&
+                        model.LoadCaseMap.TryGetValue(scen.StartingLoadCase.Key, out var startId))
+                        startingLoadCaseId = startId;
+
+                    var combinations = new List<MovingLoadCombination>(scen.Combinations.Count);
+                    foreach (var entry in scen.Combinations)
+                    {
+                        int? refId = null;
+                        if (entry.IsCombinationReference)
+                        {
+                            if (model.CombinationLoadCaseMap.TryGetValue(entry.Key, out var comboId))
+                                refId = comboId;
+                            else
+                                result.Warnings.Add(
+                                    $"Moving load scenario '{scen.Name}' references combination load case " +
+                                    $"'{entry.Name}' which was not created — combination entry skipped.");
+                        }
+                        else
+                        {
+                            if (model.LoadCaseMap.TryGetValue(entry.Key, out var lcId))
+                                refId = lcId;
+                            else
+                                result.Warnings.Add(
+                                    $"Moving load scenario '{scen.Name}' references load case " +
+                                    $"'{entry.Name}' which was not created — combination entry skipped.");
+                        }
+
+                        if (refId == null) continue;
+
+                        combinations.Add(new MovingLoadCombination
+                        {
+                            CombineWithLoadCase = refId,
+                            LoadCaseFactor = entry.LoadCaseFactor,
+                            ScenarioFactor = entry.ScenarioFactor,
+                            StartingCombinationCase = entry.StartingCombinationCase
+                        });
+                    }
+
+                    var create = new MovingLoadScenarioCreate
+                    {
+                        Name = scen.Name,
+                        Include = scen.Include,
+                        StartingLoadCase = startingLoadCaseId,
+                        TimeInterval = scen.TimeInterval,
+                        Combinations = combinations,
+                        Loads = new List<MovingLoadScenarioLoad>()
+                    };
+                    scenarioCreates.Add(create);
+                }
+
+                List<MovingLoadScenario> createdScenarios;
+                try
+                {
+                    createdScenarios = await api.CreateMovingLoadScenariosAsync(scenarioCreates, ct)
+                        .ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    throw new InvalidOperationException(
+                        FormatApiError(ex, "creating moving load scenarios"), ex);
+                }
+
+                ValidateBulkResult(createdScenarios.Count, uniqueScenarios.Count,
+                    "moving load scenarios");
+
+                for (var i = 0; i < uniqueScenarios.Count; i++)
+                    model.MovingLoadScenarioMap[uniqueScenarios[i].Key] =
+                        createdScenarios[i].Id!.Value;
+
+                // Step 7d-scenario-loads: PUT each scenario's Loads[] with resolved
+                // vehicle / pressure / travel-path IDs. Empty scenarios are warned and skipped.
+                foreach (var scen in uniqueScenarios)
+                {
+                    if (scen.Loads.Count == 0)
+                    {
+                        result.Warnings.Add(
+                            $"Moving load scenario '{scen.Name}' has no moving loads and will " +
+                            "produce no generated load cases.");
+                        continue;
+                    }
+
+                    var scenarioId = model.MovingLoadScenarioMap[scen.Key];
+                    var loadPayloads = new List<MovingLoadScenarioLoad>(scen.Loads.Count);
+                    foreach (var load in scen.Loads)
+                    {
+                        var payload = new MovingLoadScenarioLoad
+                        {
+                            LoadType = load.LoadType,
+                            Speed = load.Speed,
+                            StartPosition = load.StartPosition,
+                            Delay = load.Delay,
+                            LoadFactor = load.LoadFactor,
+                            LaneFactor = load.LaneFactor,
+                            DynamicFactor = load.DynamicFactor,
+                            GenerateStationaryLc = load.GenerateStationaryLc
+                        };
+
+                        if (load.Vehicle != null &&
+                            model.MovingLoadVehicleMap.TryGetValue(load.Vehicle.Key, out var vehicleId))
+                            payload.VehicleId = vehicleId;
+                        if (load.Pressure != null &&
+                            model.MovingLoadPressureMap.TryGetValue(load.Pressure.Key, out var pressureId))
+                            payload.PressureId = pressureId;
+                        if (model.MovingLoadTravelPathMap.TryGetValue(load.TravelPath.Key, out var pathId))
+                            payload.TravelPathId = pathId;
+
+                        loadPayloads.Add(payload);
+                    }
+
+                    try
+                    {
+                        await api.SetMovingLoadScenarioLoadsAsync(scenarioId, loadPayloads, ct)
+                            .ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        throw;
+                    }
+                    catch (Exception ex)
+                    {
+                        throw new InvalidOperationException(
+                            FormatApiError(ex,
+                                $"setting moving loads on scenario '{scen.Name}'"), ex);
+                    }
                 }
             }
 
@@ -1707,6 +2077,43 @@ public class ModelAssembler
             warnings.Add($"Duplicate {entityType} '{dup}' — only the first occurrence was used.");
 
         return unique;
+    }
+
+    /// <summary>
+    ///     Formats a set of ascending integer IDs into a SpaceGass selection string, collapsing
+    ///     adjacent runs into <c>N-M</c> ranges. Input can be unsorted and may contain
+    ///     duplicates. Empty input returns <see cref="string.Empty"/>.
+    /// </summary>
+    /// <example>
+    ///     <c>[1, 2, 3, 5, 7, 8, 9]</c> → <c>"1-3,5,7-9"</c>.
+    /// </example>
+    public static string FormatIdSelectionString(IEnumerable<int> ids)
+    {
+        var sorted = ids.Distinct().OrderBy(i => i).ToList();
+        if (sorted.Count == 0) return string.Empty;
+
+        var parts = new List<string>();
+        var rangeStart = sorted[0];
+        var rangeEnd = sorted[0];
+        for (var i = 1; i < sorted.Count; i++)
+        {
+            if (sorted[i] == rangeEnd + 1)
+            {
+                rangeEnd = sorted[i];
+            }
+            else
+            {
+                parts.Add(rangeStart == rangeEnd
+                    ? rangeStart.ToString()
+                    : $"{rangeStart}-{rangeEnd}");
+                rangeStart = sorted[i];
+                rangeEnd = sorted[i];
+            }
+        }
+        parts.Add(rangeStart == rangeEnd
+            ? rangeStart.ToString()
+            : $"{rangeStart}-{rangeEnd}");
+        return string.Join(",", parts);
     }
 
     /// <summary>

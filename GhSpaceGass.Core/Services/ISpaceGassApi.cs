@@ -93,6 +93,41 @@ internal interface ISpaceGassApi : IDisposable
     Task<List<PrescribedDisplacement>> CreatePrescribedDisplacementsAsync(
         List<PrescribedDisplacementCreate> displacements, CancellationToken ct = default);
 
+    Task<List<MovingLoadScenario>> CreateMovingLoadScenariosAsync(
+        List<MovingLoadScenarioCreate> scenarios, CancellationToken ct = default);
+
+    Task<List<MovingLoadVehicle>> CreateMovingLoadVehiclesFromUserAsync(
+        List<MovingLoadVehicleCreate> vehicles, CancellationToken ct = default);
+
+    Task<MovingLoadVehicle> CreateMovingLoadVehicleFromLibraryAsync(
+        MovingLoadVehicleLibraryCreate vehicle, CancellationToken ct = default);
+
+    Task<List<MovingLoadPressure>> CreateMovingLoadPressuresAsync(
+        List<MovingLoadPressureCreate> pressures, CancellationToken ct = default);
+
+    Task<List<MovingLoadTravelPath>> CreateMovingLoadTravelPathsAsync(
+        List<MovingLoadTravelPathCreate> travelPaths, CancellationToken ct = default);
+
+    Task<List<MovingLoadStation>> SetMovingLoadTravelPathStationsAsync(
+        int travelPathId, List<MovingLoadStation> stations, CancellationToken ct = default);
+
+    Task<List<MovingLoadScenarioLoad>> SetMovingLoadScenarioLoadsAsync(
+        int scenarioId, List<MovingLoadScenarioLoad> loads, CancellationToken ct = default);
+
+    Task<MovingLoadSettings> PatchMovingLoadSettingsAsync(
+        MovingLoadSettingsUpdate settings, CancellationToken ct = default);
+
+    Task<MovingLoadElementsToLoad> PatchMovingLoadElementsToLoadAsync(
+        MovingLoadElementsToLoadUpdate elements, CancellationToken ct = default);
+
+    Task<MovingLoadScenario> PatchMovingLoadScenarioAsync(
+        int scenarioId, MovingLoadScenarioUpdate update, CancellationToken ct = default);
+
+    Task<List<MovingLoadScenario>> ListMovingLoadScenariosAsync(CancellationToken ct = default);
+
+    Task<MovingLoadGenerationResult> GenerateMovingLoadsAsync(
+        MovingLoadGenerateRequest request, CancellationToken ct = default);
+
     // ── Analysis ────────────────────────────────────────────────────
     Task<AnalysisRun> RunStaticAnalysisAsync(
         StaticSettingsUpdate? settings = null, CancellationToken ct = default);

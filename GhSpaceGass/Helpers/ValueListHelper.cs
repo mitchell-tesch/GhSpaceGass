@@ -174,6 +174,31 @@ public static class ValueListHelper
         new("Rebuild", "0"), new("Append", "1")
     };
 
+    // ── Vehicle load unit options (Slice 41 — enum values from SpaceGassApi.Models) ──
+
+    public static readonly Option[] ForceUnitOptions =
+    {
+        new("K", "0"), new("Lb", "1"), new("KN", "2"), new("N", "3"), new("Kg", "4")
+    };
+
+    public static readonly Option[] LengthUnitOptions =
+    {
+        new("Ft", "0"), new("In", "1"), new("M", "2"), new("Cm", "3"), new("Mm", "4")
+    };
+
+    public static readonly Option[] MomentUnitOptions =
+    {
+        new("Kft", "0"), new("Kin", "1"), new("Lbft", "2"), new("Lbin", "3"),
+        new("KNm", "4"), new("KNcm", "5"), new("KNmm", "6"),
+        new("Nm", "7"), new("Ncm", "8"), new("Nmm", "9"),
+        new("Kgm", "10"), new("Kgcm", "11"), new("Kgmm", "12")
+    };
+
+    public static readonly Option[] GenerateStationaryLcOptions =
+    {
+        new("Starting Load Case Only", "0"), new("All Load Cases", "1")
+    };
+
     // ── Connection options ──────────────────────────────────────────
 
     public static readonly Option[] ForceAccessOptions =

@@ -47,7 +47,7 @@ public class GetSteelMemberCheckSummaryComponent : GH_AsyncComponent<GetSteelMem
             "failure mode, and geometric/material properties. Steel Design must be run in SpaceGass first. " +
             "Each returned record represents a design group (aggregate of one or more physical members); " +
             "the Representative Line is drawn on the model member matching the returned ID as a best-effort " +
-            "placeholder until per-member resolution is added in a later slice. " +
+            "placeholder — a future release will expand this to the full set of physical members in each group. " +
             "Colours each design group by capacity ratio (red = overloaded → green = safe margin).",
             "SpaceGass", "8 | Results")
     {

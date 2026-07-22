@@ -71,6 +71,18 @@ public class SgModelData
     /// <summary>Total number of thermal loads pushed to SpaceGass.</summary>
     public int ThermalLoadCount { get; set; }
 
+    /// <summary>Moving load scenario name → SpaceGass scenario ID.</summary>
+    public Dictionary<string, int> MovingLoadScenarioMap { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Moving load vehicle key (Library::Name for library vehicles, Name for user vehicles) → SpaceGass vehicle ID.</summary>
+    public Dictionary<string, int> MovingLoadVehicleMap { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Moving load pressure name → SpaceGass pressure ID.</summary>
+    public Dictionary<string, int> MovingLoadPressureMap { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Moving load travel path name → SpaceGass travel path ID.</summary>
+    public Dictionary<string, int> MovingLoadTravelPathMap { get; } = new(StringComparer.OrdinalIgnoreCase);
+
     public Dictionary<int, string> BuildLoadCaseIdToNameMap()
     {
         var map = new Dictionary<int, string>();

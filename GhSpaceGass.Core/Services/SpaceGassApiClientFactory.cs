@@ -269,6 +269,102 @@ internal class SpaceGassApiWrapper : ISpaceGassApi
         return ExtractBulkResult(result?.Succeeded, result?.Errors, "prescribed displacements");
     }
 
+    public async Task<List<MovingLoadScenario>> CreateMovingLoadScenariosAsync(
+        List<MovingLoadScenarioCreate> scenarios, CancellationToken ct = default)
+    {
+        var result = await _client.Job.Loads.MovingLoads.Scenarios.Bulk.PostAsync(
+            scenarios, cancellationToken: ct).ConfigureAwait(false);
+        return ExtractBulkResult(result?.Succeeded, result?.Errors, "moving load scenarios");
+    }
+
+    public async Task<List<MovingLoadVehicle>> CreateMovingLoadVehiclesFromUserAsync(
+        List<MovingLoadVehicleCreate> vehicles, CancellationToken ct = default)
+    {
+        var result = await _client.Job.Loads.MovingLoads.Vehicles.Bulk.PostAsync(
+            vehicles, cancellationToken: ct).ConfigureAwait(false);
+        return ExtractBulkResult(result?.Succeeded, result?.Errors, "moving load vehicles");
+    }
+
+    public async Task<MovingLoadVehicle> CreateMovingLoadVehicleFromLibraryAsync(
+        MovingLoadVehicleLibraryCreate vehicle, CancellationToken ct = default)
+    {
+        var result = await _client.Job.Loads.MovingLoads.Vehicles.Library.PostAsync(
+            vehicle, cancellationToken: ct).ConfigureAwait(false);
+        return result ?? throw new InvalidOperationException(
+            "SpaceGass returned no vehicle for the library moving-load vehicle request.");
+    }
+
+    public async Task<List<MovingLoadPressure>> CreateMovingLoadPressuresAsync(
+        List<MovingLoadPressureCreate> pressures, CancellationToken ct = default)
+    {
+        var result = await _client.Job.Loads.MovingLoads.Pressures.Bulk.PostAsync(
+            pressures, cancellationToken: ct).ConfigureAwait(false);
+        return ExtractBulkResult(result?.Succeeded, result?.Errors, "moving load pressures");
+    }
+
+    public async Task<List<MovingLoadTravelPath>> CreateMovingLoadTravelPathsAsync(
+        List<MovingLoadTravelPathCreate> travelPaths, CancellationToken ct = default)
+    {
+        var result = await _client.Job.Loads.MovingLoads.TravelPaths.Bulk.PostAsync(
+            travelPaths, cancellationToken: ct).ConfigureAwait(false);
+        return ExtractBulkResult(result?.Succeeded, result?.Errors, "moving load travel paths");
+    }
+
+    public async Task<List<MovingLoadStation>> SetMovingLoadTravelPathStationsAsync(
+        int travelPathId, List<MovingLoadStation> stations, CancellationToken ct = default)
+    {
+        var result = await _client.Job.Loads.MovingLoads.TravelPaths[travelPathId].Stations
+            .PutAsync(stations, cancellationToken: ct).ConfigureAwait(false);
+        return result ?? new List<MovingLoadStation>();
+    }
+
+    public async Task<List<MovingLoadScenarioLoad>> SetMovingLoadScenarioLoadsAsync(
+        int scenarioId, List<MovingLoadScenarioLoad> loads, CancellationToken ct = default)
+    {
+        var result = await _client.Job.Loads.MovingLoads.Scenarios[scenarioId].Loads
+            .PutAsync(loads, cancellationToken: ct).ConfigureAwait(false);
+        return result ?? new List<MovingLoadScenarioLoad>();
+    }
+
+    public async Task<MovingLoadSettings> PatchMovingLoadSettingsAsync(
+        MovingLoadSettingsUpdate settings, CancellationToken ct = default)
+    {
+        var result = await _client.Job.Loads.MovingLoads.Settings
+            .PatchAsync(settings, cancellationToken: ct).ConfigureAwait(false);
+        return result ?? new MovingLoadSettings();
+    }
+
+    public async Task<MovingLoadElementsToLoad> PatchMovingLoadElementsToLoadAsync(
+        MovingLoadElementsToLoadUpdate elements, CancellationToken ct = default)
+    {
+        var result = await _client.Job.Loads.MovingLoads.ElementsToLoad
+            .PatchAsync(elements, cancellationToken: ct).ConfigureAwait(false);
+        return result ?? new MovingLoadElementsToLoad();
+    }
+
+    public async Task<MovingLoadScenario> PatchMovingLoadScenarioAsync(
+        int scenarioId, MovingLoadScenarioUpdate update, CancellationToken ct = default)
+    {
+        var result = await _client.Job.Loads.MovingLoads.Scenarios[scenarioId]
+            .PatchAsync(update, cancellationToken: ct).ConfigureAwait(false);
+        return result ?? new MovingLoadScenario();
+    }
+
+    public async Task<List<MovingLoadScenario>> ListMovingLoadScenariosAsync(CancellationToken ct = default)
+    {
+        var result = await _client.Job.Loads.MovingLoads.Scenarios
+            .GetAsync(cancellationToken: ct).ConfigureAwait(false);
+        return result ?? new List<MovingLoadScenario>();
+    }
+
+    public async Task<MovingLoadGenerationResult> GenerateMovingLoadsAsync(
+        MovingLoadGenerateRequest request, CancellationToken ct = default)
+    {
+        var result = await _client.Job.Loads.MovingLoads.Generate
+            .PostAsync(request, cancellationToken: ct).ConfigureAwait(false);
+        return result ?? new MovingLoadGenerationResult();
+    }
+
     public async Task<AnalysisRun> RunStaticAnalysisAsync(
         StaticSettingsUpdate? settings = null, CancellationToken ct = default)
     {

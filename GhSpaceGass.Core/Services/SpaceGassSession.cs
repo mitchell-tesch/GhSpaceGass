@@ -329,6 +329,7 @@ public class SpaceGassSession : IDisposable
         IReadOnlyList<SgPlateData>? plates = null,
         IReadOnlyList<SgPlatePressureLoadData>? platePressureLoads = null,
         IReadOnlyList<SgThermalLoadData>? thermalLoads = null,
+        IReadOnlyList<SgMovingLoadScenarioData>? movingLoadScenarios = null,
         bool appendMode = false,
         CancellationToken ct = default)
     {
@@ -340,7 +341,257 @@ public class SpaceGassSession : IDisposable
             memberDistributedLoads, selfWeightLoads, combinationLoadCases,
             lumpedMassLoads, prescribedDisplacements, memberConcentratedLoads,
             memberPrestressLoads, nodeConstraints, plates, platePressureLoads,
-            thermalLoads, appendMode, ct).ConfigureAwait(false);
+            thermalLoads, movingLoadScenarios,
+            appendMode, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Generates the moving-load load cases for each subgroup in the input branch trees.
+    ///     For each branch, PATCHes the ElementsToLoad selection, toggles the Include flag on
+    ///     the scenarios that belong to this branch (and disables the others), then POSTs
+    ///     Generate. Settings — when supplied — are PATCHed once at the start. All scenario
+    ///     Include flags are snapshotted before the run and restored afterwards, even on
+    ///     exception.
+    /// </summary>
+    /// <param name="model">The assembled model — MemberMap / PlateMap / MovingLoadScenarioMap must be populated.</param>
+    /// <param name="membersToLoad">Branch path → resolved member IDs that receive moving-load distribution in that subgroup.</param>
+    /// <param name="platesToLoad">Branch path → resolved plate IDs that receive moving-load distribution in that subgroup.</param>
+    /// <param name="scenariosToApply">Branch path → scenario names to enable (Include=true) for that subgroup.</param>
+    /// <param name="settings">Optional moving-load engine settings, PATCHed once at the start.</param>
+    /// <param name="loadCategoryName">Optional load-category name — resolved via <see cref="SgModelData.LoadCategoryMap"/>.</param>
+    public async Task<SgMovingLoadGenerationResult> GenerateMovingLoadsAsync(
+        SgModelData model,
+        IReadOnlyDictionary<string, IReadOnlyList<int>> membersToLoad,
+        IReadOnlyDictionary<string, IReadOnlyList<int>> platesToLoad,
+        IReadOnlyDictionary<string, IReadOnlyList<string>> scenariosToApply,
+        SgMovingLoadSettingsData? settings = null,
+        string? loadCategoryName = null,
+        CancellationToken ct = default)
+    {
+        if (!IsConnected)
+            throw new InvalidOperationException("Not connected to SpaceGass");
+
+        var result = new SgMovingLoadGenerationResult();
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+        // Union of branch paths across the three input trees
+        var branchPaths = membersToLoad.Keys
+            .Concat(platesToLoad.Keys)
+            .Concat(scenariosToApply.Keys)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(p => p, StringComparer.Ordinal)
+            .ToList();
+
+        if (branchPaths.Count == 0)
+        {
+            result.Warnings.Add("No subgroups supplied — nothing to generate.");
+            result.ElapsedTime = stopwatch.Elapsed;
+            return result;
+        }
+
+        // Resolve load category (optional)
+        int? loadCategoryId = null;
+        if (!string.IsNullOrEmpty(loadCategoryName))
+        {
+            if (model.LoadCategoryMap.TryGetValue(loadCategoryName!, out var catId))
+                loadCategoryId = catId;
+            else
+                result.Warnings.Add(
+                    $"Load category '{loadCategoryName}' not found in the model — the generated " +
+                    "cases will not be tagged with a category.");
+        }
+
+        // Settings PATCH — once at the start
+        if (settings is { HasAnyValue: true })
+        {
+            var update = new MovingLoadSettingsUpdate
+            {
+                ApplyToClosestMember = settings.ApplyToClosestMember,
+                CheckVerticalProximity = settings.CheckVerticalProximity,
+                VerticalProximity = settings.VerticalProximity,
+                IgnoreLoadsOnOneMember = settings.IgnoreLoadsOnOneMember,
+                IgnoreOutsideLoadedArea = settings.IgnoreOutsideLoadedArea,
+                KeepLoadsWithinTravelPath = settings.KeepLoadsWithinTravelPath,
+                RetainLoads = settings.RetainLoads
+            };
+            try
+            {
+                await _api!.PatchMovingLoadSettingsAsync(update, ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException(
+                    ModelAssembler.FormatApiError(ex, "updating moving load settings"), ex);
+            }
+        }
+
+        // Collect scenario IDs that appear anywhere in the input tree — these are the ones
+        // whose Include flag we'll toggle per branch and restore at the end. Also validate
+        // that every named scenario exists in the model's scenario map.
+        var scenarioNamesInTree = scenariosToApply.Values
+            .SelectMany(names => names)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var scenarioNameToId = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var name in scenarioNamesInTree)
+        {
+            if (model.MovingLoadScenarioMap.TryGetValue(name, out var id))
+                scenarioNameToId[name] = id;
+            else
+                result.Warnings.Add(
+                    $"Moving load scenario '{name}' referenced by Scenarios To Apply was not " +
+                    "found in the model — skipping.");
+        }
+
+        // Snapshot the Include flag of every scenario that will be touched.
+        var includeSnapshot = new Dictionary<int, bool>();
+        if (scenarioNameToId.Count > 0)
+        {
+            List<MovingLoadScenario> jobScenarios;
+            try
+            {
+                jobScenarios = await _api!.ListMovingLoadScenariosAsync(ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException(
+                    ModelAssembler.FormatApiError(ex, "listing moving load scenarios"), ex);
+            }
+
+            var toTouch = scenarioNameToId.Values.ToHashSet();
+            foreach (var s in jobScenarios)
+                if (s.Id.HasValue && toTouch.Contains(s.Id.Value))
+                    includeSnapshot[s.Id.Value] = s.Include ?? true;
+        }
+
+        try
+        {
+            foreach (var path in branchPaths)
+            {
+                membersToLoad.TryGetValue(path, out var branchMemberIds);
+                platesToLoad.TryGetValue(path, out var branchPlateIds);
+                scenariosToApply.TryGetValue(path, out var branchScenarioNames);
+
+                var memberSelection = ModelAssembler.FormatIdSelectionString(
+                    branchMemberIds ?? Array.Empty<int>());
+                var plateSelection = ModelAssembler.FormatIdSelectionString(
+                    branchPlateIds ?? Array.Empty<int>());
+
+                if (memberSelection.Length == 0 && plateSelection.Length == 0)
+                {
+                    result.Warnings.Add(
+                        $"Subgroup '{path}' has no members or plates to load — skipping.");
+                    continue;
+                }
+
+                // Collect branch's scenario IDs early so we can skip empty-scenarios branches
+                // before touching any live job state — Generate would just produce nothing.
+                var branchScenarioIds = new HashSet<int>();
+                if (branchScenarioNames != null)
+                    foreach (var name in branchScenarioNames)
+                        if (scenarioNameToId.TryGetValue(name, out var sid))
+                            branchScenarioIds.Add(sid);
+
+                if (branchScenarioIds.Count == 0)
+                {
+                    result.Warnings.Add(
+                        $"Subgroup '{path}' has no moving load scenarios to apply — skipping " +
+                        "(Generate would produce no load cases for this subgroup).");
+                    continue;
+                }
+
+                // PATCH ElementsToLoad
+                var etlUpdate = new MovingLoadElementsToLoadUpdate
+                {
+                    Members = memberSelection.Length > 0 ? memberSelection : null,
+                    Plates = plateSelection.Length > 0 ? plateSelection : null
+                };
+                try
+                {
+                    await _api!.PatchMovingLoadElementsToLoadAsync(etlUpdate, ct)
+                        .ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception ex)
+                {
+                    throw new InvalidOperationException(
+                        ModelAssembler.FormatApiError(ex,
+                            $"updating moving load elements to load for subgroup '{path}'"), ex);
+                }
+
+                // Toggle scenario Include flags — true if in this branch's scenarios, false
+                // otherwise. Only touch scenarios that appear somewhere in the input tree.
+                // branchScenarioIds was populated earlier before the ElementsToLoad PATCH so
+                // we can skip empty-scenarios branches without side effects.
+                foreach (var (_, sid) in scenarioNameToId)
+                {
+                    var include = branchScenarioIds.Contains(sid);
+                    try
+                    {
+                        await _api!.PatchMovingLoadScenarioAsync(sid,
+                            new MovingLoadScenarioUpdate { Include = include }, ct)
+                            .ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) { throw; }
+                    catch (Exception ex)
+                    {
+                        throw new InvalidOperationException(
+                            ModelAssembler.FormatApiError(ex,
+                                $"toggling scenario Include for subgroup '{path}'"), ex);
+                    }
+                }
+
+                // POST Generate
+                MovingLoadGenerationResult apiResult;
+                try
+                {
+                    apiResult = await _api!.GenerateMovingLoadsAsync(
+                        new MovingLoadGenerateRequest { LoadCategory = loadCategoryId }, ct)
+                        .ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception ex)
+                {
+                    throw new InvalidOperationException(
+                        ModelAssembler.FormatApiError(ex,
+                            $"generating moving loads for subgroup '{path}'"), ex);
+                }
+
+                var branch = new SgMovingLoadGenerationBranch(path);
+                if (apiResult.GeneratedLoadCaseIds != null)
+                    foreach (var id in apiResult.GeneratedLoadCaseIds)
+                        if (id.HasValue) branch.LoadCaseIds.Add(id.Value);
+                if (apiResult.GeneratedGroups != null)
+                    branch.Groups.AddRange(apiResult.GeneratedGroups);
+                result.Branches[path] = branch;
+            }
+        }
+        finally
+        {
+            // Restore Include state on every scenario we snapshotted, in a best-effort loop.
+            // Restoration errors do not overwrite the primary exception (if any) — they are
+            // appended as warnings on the result.
+            foreach (var (sid, originalInclude) in includeSnapshot)
+            {
+                try
+                {
+                    await _api!.PatchMovingLoadScenarioAsync(sid,
+                        new MovingLoadScenarioUpdate { Include = originalInclude },
+                        CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    result.Warnings.Add(
+                        $"Failed to restore Include flag on scenario {sid}: {ex.Message}");
+                }
+            }
+        }
+
+        result.ElapsedTime = stopwatch.Elapsed;
+        return result;
     }
 
     /// <summary>

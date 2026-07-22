@@ -22,7 +22,7 @@ public class CreateThermalLoadComponent : GH_Component
     public CreateThermalLoadComponent()
         : base("SG Thermal Load", "sgThermal",
             "Create a SpaceGass thermal load (temperature change + gradients). " +
-            "Accepts a Line (member) or Plate Goo — auto-detects element type.",
+            "Accepts a Line (member) or a Plate — auto-detects element type.",
             "SpaceGass", "5 | Loads")
     {
     }
@@ -34,7 +34,7 @@ public class CreateThermalLoadComponent : GH_Component
     protected override void RegisterInputParams(GH_InputParamManager pManager)
     {
         _inElement = pManager.AddGenericParameter("Element", "E",
-            "The element to apply the thermal load to — Line (member) or Plate Goo.",
+            "The element to apply the thermal load to — a Line (member) or a Plate.",
             GH_ParamAccess.item);
         _inLoadCase = pManager.AddParameter(new Param_SgLoadCase(),
             "Load Case", "LC",
@@ -114,7 +114,7 @@ public class CreateThermalLoadComponent : GH_Component
             else
             {
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Error,
-                    $"Element input must be a Line (member) or Plate Goo. Got: {elementGoo.TypeName}");
+                    $"Element input must be a Line (member) or a Plate. Got: {elementGoo.TypeName}");
                 return;
             }
         }

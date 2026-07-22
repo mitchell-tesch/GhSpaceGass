@@ -1,3 +1,4 @@
+using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 
@@ -980,6 +981,7 @@ public static class IconFactory
     }
 
     /// <summary>Thermal load: thermometer symbol.</summary>
+    /// <summary>Thermal load: thermometer icon.</summary>
     public static Bitmap ThermalLoad()
     {
         var bmp = Create();
@@ -995,6 +997,170 @@ public static class IconFactory
         g.DrawLine(pen, 14, 10, 17, 10);
         return bmp;
     }
+
+    /// <summary>Moving load scenario: simplified vehicle silhouette on a beam.</summary>
+    public static Bitmap MovingLoadScenario()
+    {
+        var bmp = Create();
+        using var g = Setup(bmp);
+        using var pen = P(Loads, 2f);
+        using var beamPen = P(Structure, 1.5f);
+        using var brush = B(Loads);
+        // Beam / travel path along the bottom
+        g.DrawLine(beamPen, 2, 20, 22, 20);
+        // Vehicle body (rectangle) sitting on the beam
+        var body = new Rectangle(5, 9, 14, 7);
+        g.FillRectangle(brush, body);
+        // Cab notch (drawn as a triangle back on top-left)
+        var cab = new PointF[] { new(5, 9), new(11, 5), new(13, 9) };
+        g.FillPolygon(brush, cab);
+        // Two wheels
+        g.FillEllipse(brush, 6, 16, 4, 4);
+        g.FillEllipse(brush, 14, 16, 4, 4);
+        // Motion arrow ahead of the vehicle
+        var head = new PointF[] { new(23, 12), new(19, 10), new(19, 14) };
+        g.FillPolygon(brush, head);
+        return bmp;
+    }
+
+    /// <summary>Moving load vehicle: truck body with two wheels + wheel-load markers.</summary>
+    public static Bitmap MovingLoadVehicle()
+    {
+        var bmp = Create();
+        using var g = Setup(bmp);
+        using var brush = B(Loads);
+        using var accentPen = P(Loads, 1.5f);
+        // Vehicle body
+        var body = new Rectangle(3, 8, 18, 8);
+        g.FillRectangle(brush, body);
+        // Cab
+        var cab = new PointF[] { new(3, 8), new(10, 3), new(14, 8) };
+        g.FillPolygon(brush, cab);
+        // Two wheels
+        g.FillEllipse(brush, 4, 16, 5, 5);
+        g.FillEllipse(brush, 15, 16, 5, 5);
+        // Wheel-load force arrows (small vertical ticks above the wheels)
+        g.DrawLine(accentPen, 6, 1, 6, 6);
+        g.DrawLine(accentPen, 17, 1, 17, 6);
+        return bmp;
+    }
+
+    /// <summary>Moving load pressure: rectangular footprint with pressure arrows.</summary>
+    public static Bitmap MovingLoadPressure()
+    {
+        var bmp = Create();
+        using var g = Setup(bmp);
+        using var brush = B(Loads);
+        using var pen = P(Loads, 2f);
+        using var outlinePen = P(Loads, 1.5f);
+        // Rectangular pressure footprint (outline only)
+        g.DrawRectangle(outlinePen, 3, 12, 18, 8);
+        // Three downward pressure arrows on top of the footprint
+        for (var x = 6; x <= 18; x += 6)
+        {
+            g.DrawLine(pen, x, 2, x, 10);
+            var head = new PointF[] { new(x, 12), new(x - 2, 8), new(x + 2, 8) };
+            g.FillPolygon(brush, head);
+        }
+        return bmp;
+    }
+
+    /// <summary>Moving load travel path: polyline path with station dots.</summary>
+    public static Bitmap MovingLoadTravelPath()
+    {
+        var bmp = Create();
+        using var g = Setup(bmp);
+        using var pen = P(Loads, 2f);
+        using var brush = B(Loads);
+        // Polyline path — four segments zig-zagging across the canvas
+        var pts = new PointF[]
+        {
+            new(3, 18), new(8, 6), new(13, 14), new(18, 5), new(22, 12)
+        };
+        for (var i = 0; i < pts.Length - 1; i++)
+            g.DrawLine(pen, pts[i], pts[i + 1]);
+        // Station dots at each vertex
+        foreach (var p in pts)
+            g.FillEllipse(brush, p.X - 2, p.Y - 2, 4, 4);
+        return bmp;
+    }
+
+    /// <summary>Moving load: small vehicle glyph riding on top of a path arrow.</summary>
+    public static Bitmap MovingLoad()
+    {
+        var bmp = Create();
+        using var g = Setup(bmp);
+        using var pen = P(Loads, 2f);
+        using var brush = B(Loads);
+        // Travel-path arrow along the bottom
+        g.DrawLine(pen, 3, 20, 20, 20);
+        var head = new PointF[] { new(23, 20), new(19, 17), new(19, 23) };
+        g.FillPolygon(brush, head);
+        // Vehicle body riding on the path
+        g.FillRectangle(brush, 6, 9, 12, 6);
+        var cab = new PointF[] { new(6, 9), new(11, 5), new(13, 9) };
+        g.FillPolygon(brush, cab);
+        // Two small wheels
+        g.FillEllipse(brush, 7, 15, 3, 3);
+        g.FillEllipse(brush, 14, 15, 3, 3);
+        return bmp;
+    }
+
+    /// <summary>Moving load settings: cog wheel on the Loads-colour background.</summary>
+    public static Bitmap MovingLoadSettings()
+    {
+        var bmp = Create();
+        using var g = Setup(bmp);
+        using var pen = P(Loads, 1.5f);
+        using var brush = B(Loads);
+        // Cog teeth — eight rectangular teeth around a central hub
+        var cx = 12f;
+        var cy = 12f;
+        var outerR = 10f;
+        var innerR = 7f;
+        var teeth = 8;
+        for (var i = 0; i < teeth; i++)
+        {
+            var a1 = i * 2 * Math.PI / teeth - Math.PI / teeth * 0.35;
+            var a2 = i * 2 * Math.PI / teeth + Math.PI / teeth * 0.35;
+            var pts = new PointF[]
+            {
+                new((float)(cx + innerR * Math.Cos(a1)), (float)(cy + innerR * Math.Sin(a1))),
+                new((float)(cx + outerR * Math.Cos(a1)), (float)(cy + outerR * Math.Sin(a1))),
+                new((float)(cx + outerR * Math.Cos(a2)), (float)(cy + outerR * Math.Sin(a2))),
+                new((float)(cx + innerR * Math.Cos(a2)), (float)(cy + innerR * Math.Sin(a2)))
+            };
+            g.FillPolygon(brush, pts);
+        }
+        // Filled hub with a small centre hole for contrast
+        g.FillEllipse(brush, cx - innerR, cy - innerR, innerR * 2, innerR * 2);
+        g.FillEllipse(new SolidBrush(Color.Transparent), cx - 2.5f, cy - 2.5f, 5, 5);
+        g.DrawEllipse(pen, cx - 2.5f, cy - 2.5f, 5, 5);
+        return bmp;
+    }
+
+    /// <summary>Generate Moving Loads: play triangle above a moving-load motif.</summary>
+    public static Bitmap GenerateMovingLoads()
+    {
+        var bmp = Create();
+        using var g = Setup(bmp);
+        using var brush = B(Loads);
+        using var pen = P(Loads, 2f);
+        // Play triangle at the top-left
+        var play = new PointF[] { new(3, 3), new(3, 13), new(11, 8) };
+        g.FillPolygon(brush, play);
+        // Path arrow along the bottom
+        g.DrawLine(pen, 3, 21, 20, 21);
+        var head = new PointF[] { new(23, 21), new(19, 18), new(19, 24) };
+        g.FillPolygon(brush, head);
+        // Small vehicle body sitting on the path
+        g.FillRectangle(brush, 13, 14, 8, 5);
+        g.FillEllipse(brush, 14, 18, 3, 3);
+        g.FillEllipse(brush, 18, 18, 3, 3);
+        return bmp;
+    }
+
+
 
     /// <summary>Plate forces: plate with force arrows.</summary>
     public static Bitmap PlateForces()

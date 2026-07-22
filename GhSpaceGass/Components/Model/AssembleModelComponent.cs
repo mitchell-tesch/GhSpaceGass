@@ -23,6 +23,7 @@ public class AssembleModelComponent : GH_AsyncComponent<AssembleModelComponent>
     private int _inLoads;
     private int _inMembers;
     private int _inMode;
+    private int _inMovingLoadScenarios;
     private int _inPlates;
     private int _inRestraints;
     private int _inTolerance;
@@ -74,6 +75,15 @@ public class AssembleModelComponent : GH_AsyncComponent<AssembleModelComponent>
             "CLC",
             "List of combination load cases to create (optional).",
             GH_ParamAccess.list);
+        _inMovingLoadScenarios = pManager.AddParameter(new Param_SgMovingLoadScenario(),
+            "Moving Load Scenarios", "MLS",
+            "List of moving load scenarios to create (optional). Each scenario carries the " +
+            "vehicles, pressures and travel paths it uses via its Loads input — those are " +
+            "created automatically before the scenarios themselves.\n" +
+            "Note: assembling a scenario stages the moving-load setup in the SpaceGass job. " +
+            "A separate Generate Moving Loads step is required before analysis reflects the " +
+            "moving loads (coming in a future release).",
+            GH_ParamAccess.list);
         _inTolerance = pManager.AddNumberParameter("Tolerance", "T",
             "Coincidence tolerance for node deduplication. Defaults to Rhino document tolerance.",
             GH_ParamAccess.item);
@@ -90,6 +100,7 @@ public class AssembleModelComponent : GH_AsyncComponent<AssembleModelComponent>
         pManager[_inConstraints].Optional = true;
         pManager[_inLoads].Optional = true;
         pManager[_inCombinationLoadCases].Optional = true;
+        pManager[_inMovingLoadScenarios].Optional = true;
         pManager[_inTolerance].Optional = true;
         pManager[_inMode].Optional = true;
     }
@@ -144,6 +155,7 @@ public class AssembleModelComponent : GH_AsyncComponent<AssembleModelComponent>
         private List<SgPlatePressureLoadData> PlatePressureLoads { get; set; } = new();
         private List<SgThermalLoadData> ThermalLoads { get; set; } = new();
         private List<SgCombinationLoadCaseData> CombinationLoadCases { get; set; } = new();
+        private List<SgMovingLoadScenarioData> MovingLoadScenarios { get; set; } = new();
         private double Tolerance { get; set; }
         private bool AppendMode { get; set; }
         private int MultiInstanceCount { get; set; }
@@ -254,6 +266,15 @@ public class AssembleModelComponent : GH_AsyncComponent<AssembleModelComponent>
                 if (goo?.Value != null)
                     CombinationLoadCases.Add(goo.Value);
 
+            // Moving Load Scenarios (optional) — vehicles / pressures / travel paths flow
+            // through each scenario's Loads[].
+            var mlsGoos = new List<GH_SgMovingLoadScenario>();
+            da.GetDataList(Parent._inMovingLoadScenarios, mlsGoos);
+            MovingLoadScenarios = new List<SgMovingLoadScenarioData>();
+            foreach (var goo in mlsGoos)
+                if (goo?.Value != null)
+                    MovingLoadScenarios.Add(goo.Value);
+
             // Default to Rhino document tolerance
             var tolerance = RhinoDoc.ActiveDoc?.ModelAbsoluteTolerance ?? 0.001;
             da.GetData(Parent._inTolerance, ref tolerance);
@@ -322,7 +343,8 @@ public class AssembleModelComponent : GH_AsyncComponent<AssembleModelComponent>
             var result = await session.AssembleModelAsync(
                     Members, Tolerance, Restraints, NodeLoads, DistLoads, SelfWeightLoads, CombinationLoadCases,
                     LumpedMassLoads, PrescribedDisplacements, MemberConcentratedLoads, MemberPrestressLoads,
-                    Constraints, Plates, PlatePressureLoads, ThermalLoads, AppendMode, CancellationToken)
+                    Constraints, Plates, PlatePressureLoads, ThermalLoads, MovingLoadScenarios,
+                    AppendMode, CancellationToken)
                 .ConfigureAwait(false);
             Model = result.Model;
 
@@ -351,7 +373,11 @@ public class AssembleModelComponent : GH_AsyncComponent<AssembleModelComponent>
                 $"{Model.LumpedMassLoadCount} lumped mass loads, " +
                 $"{Model.PrescribedDisplacementCount} prescribed displacements, " +
                 $"{Model.PlatePressureLoadCount} plate pressure loads, " +
-                $"{Model.ThermalLoadCount} thermal loads."
+                $"{Model.ThermalLoadCount} thermal loads, " +
+                $"{Model.MovingLoadVehicleMap.Count} moving load vehicles, " +
+                $"{Model.MovingLoadPressureMap.Count} moving load pressures, " +
+                $"{Model.MovingLoadTravelPathMap.Count} moving load travel paths, " +
+                $"{Model.MovingLoadScenarioMap.Count} moving load scenarios."
             };
 
             foreach (var warning in result.Warnings)
